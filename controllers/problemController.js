@@ -1,12 +1,48 @@
-const fs = require("fs");
-const path = require("path");
-const axios = require("axios");
+const mongoose = require("mongoose");
 const Problem = require("../models/problems");
-
+const axios = require("axios");
+const { Readable } = require("stream");
 require("dotenv").config();
 
-const PROBLEM_DATA_DIR = path.resolve(__dirname, "../problem_data");
 const COMPILER_URL = process.env.COMPILER_URL || "http://localhost:7000";
+
+let gfs;
+const conn = mongoose.connection;
+conn.once("open", () => {
+  gfs = new mongoose.mongo.GridFSBucket(conn.db, {
+    bucketName: "problem_data",
+  });
+});
+
+// Utility to read GridFS file to string
+const readGridFSFile = async (filename) => {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    const stream = gfs.openDownloadStreamByName(filename);
+    stream.on("data", (chunk) => (data += chunk));
+    stream.on("end", () => resolve(data));
+    stream.on("error", reject);
+  });
+};
+
+// Utility to write file to GridFS
+const writeGridFSFile = async (filename, content) => {
+  return new Promise((resolve, reject) => {
+    // Delete previous if exists
+    gfs.deleteMany
+    gfs.find({ filename }).toArray((err, files) => {
+      if (files.length > 0) {
+        gfs.delete(files[0]._id, () => {
+          const stream = gfs.openUploadStream(filename);
+          Readable.from(content).pipe(stream).on("finish", resolve).on("error", reject);
+        });
+      } else {
+        const stream = gfs.openUploadStream(filename);
+        Readable.from(content).pipe(stream).on("finish", resolve).on("error", reject);
+      }
+    });
+  });
+};
 
 // Create a new problem
 exports.createProblem = async (req, res) => {
@@ -20,18 +56,16 @@ exports.createProblem = async (req, res) => {
     const newProblem = new Problem({ title, description, difficulty });
     await newProblem.save();
 
-    const problemDir = path.join(PROBLEM_DATA_DIR, newProblem._id.toString());
-    if (!fs.existsSync(problemDir)) fs.mkdirSync(problemDir, { recursive: true });
+    const id = newProblem._id.toString();
+    const inputArr = testCases.map(tc => tc.input.trim());
+    const outputArr = testCases.map(tc => tc.expectedOutput.trim());
 
-    const inputLines = testCases.map(tc => tc.input.trim());
-    const outputLines = testCases.map(tc => tc.expectedOutput.trim());
+    await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputArr, null, 2));
+    await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputArr, null, 2));
 
-    fs.writeFileSync(path.join(problemDir, "input.txt"), JSON.stringify(inputLines, null, 2), "utf-8");
-    fs.writeFileSync(path.join(problemDir, "expected_output.txt"), JSON.stringify(outputLines, null, 2), "utf-8");
-
-    res.status(201).json({ message: "Problem created successfully", id: newProblem._id });
+    res.status(201).json({ message: "Problem created successfully", id });
   } catch (err) {
-    console.error("Error in createProblem:", err);
+    console.error("❌ Error in createProblem:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -43,23 +77,21 @@ exports.getProblem = async (req, res) => {
     const problem = await Problem.findById(id);
     if (!problem) return res.status(404).json({ error: "Problem not found" });
 
-    const problemDir = path.join(PROBLEM_DATA_DIR, id);
-    const inputPath = path.join(problemDir, "input.txt");
-    const expectedPath = path.join(problemDir, "expected_output.txt");
-
     let testCases = [];
-    if (fs.existsSync(inputPath) && fs.existsSync(expectedPath)) {
-      const inputs = JSON.parse(fs.readFileSync(inputPath, "utf-8"));
-      const outputs = JSON.parse(fs.readFileSync(expectedPath, "utf-8"));
-      testCases = inputs.map((input, i) => ({
-        input,
-        expectedOutput: outputs[i] || ""
+    try {
+      const input = JSON.parse(await readGridFSFile(`${id}_input.txt`));
+      const output = JSON.parse(await readGridFSFile(`${id}_expected_output.txt`));
+      testCases = input.map((inp, i) => ({
+        input: inp,
+        expectedOutput: output[i] || ""
       }));
+    } catch (e) {
+      console.warn("⚠️ No test cases found in GridFS for problem:", id);
     }
 
     res.json({ ...problem.toObject(), testCases });
   } catch (err) {
-    console.error("Error in getProblem:", err);
+    console.error("❌ Error in getProblem:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -74,19 +106,16 @@ exports.editProblem = async (req, res) => {
     if (!updated) return res.status(404).json({ error: "Problem not found" });
 
     if (testCases?.length) {
-      const problemDir = path.join(PROBLEM_DATA_DIR, id);
-      if (!fs.existsSync(problemDir)) fs.mkdirSync(problemDir);
+      const inputArr = testCases.map(tc => tc.input.trim());
+      const outputArr = testCases.map(tc => tc.expectedOutput.trim());
 
-      const inputLines = testCases.map(tc => tc.input.trim());
-      const outputLines = testCases.map(tc => tc.expectedOutput.trim());
-
-      fs.writeFileSync(path.join(problemDir, "input.txt"), JSON.stringify(inputLines, null, 2), "utf-8");
-      fs.writeFileSync(path.join(problemDir, "expected_output.txt"), JSON.stringify(outputLines, null, 2), "utf-8");
+      await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputArr, null, 2));
+      await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputArr, null, 2));
     }
 
     res.json({ message: "Problem updated successfully", problem: updated });
   } catch (err) {
-    console.error("Error in editProblem:", err);
+    console.error("❌ Error in editProblem:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -143,7 +172,7 @@ exports.listProblems = async (req, res) => {
     const problems = await Problem.find({}, "title description difficulty");
     res.json(problems);
   } catch (err) {
-    console.error("Error in listProblems:", err);
+    console.error("❌ Error in listProblems:", err);
     res.status(500).json({ error: "Failed to fetch problems" });
   }
 };
@@ -155,14 +184,20 @@ exports.deleteProblem = async (req, res) => {
     const deleted = await Problem.findByIdAndDelete(id);
     if (!deleted) return res.status(404).json({ error: "Problem not found" });
 
-    const problemDir = path.join(PROBLEM_DATA_DIR, id);
-    if (fs.existsSync(problemDir)) {
-      fs.rmSync(problemDir, { recursive: true, force: true });
-    }
+    const inputFile = `${id}_input.txt`;
+    const outputFile = `${id}_expected_output.txt`;
+
+    const deleteIfExists = (filename) =>
+      gfs.find({ filename }).toArray((err, files) => {
+        if (files.length > 0) gfs.delete(files[0]._id, () => {});
+      });
+
+    deleteIfExists(inputFile);
+    deleteIfExists(outputFile);
 
     res.json({ message: "Problem deleted successfully" });
   } catch (err) {
-    console.error("Error in deleteProblem:", err);
+    console.error("❌ Error in deleteProblem:", err);
     res.status(500).json({ error: err.message });
   }
 };
