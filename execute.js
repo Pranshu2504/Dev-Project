@@ -6,8 +6,8 @@ const { v4: uuid } = require("uuid");
 const executeCode = ({ language, filepath, input }) => {
   return new Promise((resolve) => {
     const jobId = uuid();
-    const inputPath = path.join(__dirname, "outputs", `${jobId}_input.txt`);
-    const outputPath = path.join(__dirname, "outputs", `${jobId}_output.txt`);
+    const inputPath = path.join("/mnt/data/outputs", `${jobId}_input.txt`);
+    const outputPath = path.join("/mnt/data/outputs", `${jobId}_output.txt`);
     fs.writeFileSync(inputPath, input || "");
 
     let compileCmd = "";

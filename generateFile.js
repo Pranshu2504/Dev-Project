@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { v4: uuid } = require("uuid");
 
-const codesDir = path.join(__dirname, "codes");
+const codesDir = path.join("/mnt/data/codes");
 
 if (!fs.existsSync(codesDir)) {
   fs.mkdirSync(codesDir, { recursive: true });

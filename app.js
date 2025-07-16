@@ -9,7 +9,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
 const PORT = process.env.PORT || 7000;
-const PROBLEM_DATA_DIR = path.join(__dirname, "problem_data");
+const PROBLEM_DATA_DIR = path.join("/mnt/data/problem_data");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.use(cors());
@@ -18,9 +18,7 @@ app.use(express.json());
 const normalize = (s) =>
   s.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").map(l => l.trim()).join("\n");
 
-// --------------------------------------------
-// /api/run: Runs first 3 test cases + custom
-// --------------------------------------------
+// ---------------- /api/run ----------------
 app.post("/api/run", async (req, res) => {
   const { code, language, problemId, customInput } = req.body;
   const extMap = { cpp: "cpp", python: "py", java: "java" };
@@ -83,9 +81,7 @@ app.post("/api/run", async (req, res) => {
   }
 });
 
-// -------------------------------------------------
-// /api/problems/:id/submit: Full test case check
-// -------------------------------------------------
+// ---------------- /api/problems/:id/submit ----------------
 app.post("/api/problems/:id/submit", async (req, res) => {
   const { code, language } = req.body;
   const problemId = req.params.id;
@@ -152,9 +148,7 @@ app.post("/api/problems/:id/submit", async (req, res) => {
   }
 });
 
-// ------------------------------------
-// /api/ai-help: Gemini Flash support
-// ------------------------------------
+// ---------------- /api/ai-help ----------------
 app.post("/api/ai-help", async (req, res) => {
   const { prompt } = req.body;
 
