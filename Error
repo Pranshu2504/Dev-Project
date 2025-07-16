@@ -1,0 +1,60 @@
+const { exec } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const { v4: uuid } = require("uuid");
+
+const executeCode = ({ language, filepath, inputFile }) => {
+  return new Promise((resolve, reject) => {
+    const jobId = uuid();
+    const outputsDir = path.join(__dirname, "outputs");
+    if (!fs.existsSync(outputsDir)) {
+      fs.mkdirSync(outputsDir, { recursive: true });
+    }
+
+    const outputPath = path.join(outputsDir, `${jobId}.txt`);
+
+    let compileCmd, runCmd;
+    const runWithInput = (run) => `${run} < "${inputFile}" > "${outputPath}"`;
+
+    switch (language) {
+      case "cpp": {
+        const outputBinary = filepath.replace(/\.cpp$/, `_${jobId}.out`);
+        compileCmd = `g++ "${filepath}" -o "${outputBinary}"`;
+        runCmd = runWithInput(`timeout 10s "${outputBinary}"`);
+        break;
+      }
+      case "python": {
+        compileCmd = "";
+        runCmd = runWithInput(`timeout 10s python3 "${filepath}"`);
+        break;
+      }
+      case "java": {
+        const className = path.basename(filepath).replace(".java", "");
+        compileCmd = `javac "${filepath}"`;
+        runCmd = runWithInput(`timeout 10s java -cp "${path.dirname(filepath)}" ${className}`);
+        break;
+      }
+      default:
+        return reject({ stderr: "❌ Unsupported language", output: "" });
+    }
+
+    const fullCmd = compileCmd ? `${compileCmd} && ${runCmd}` : runCmd;
+
+    exec(fullCmd, (err, stdout, stderr) => {
+      if (err) {
+        return reject({ stderr: stderr || err.message || stdout, output: "" });
+      }
+      if (!fs.existsSync(outputPath)) {
+        return reject({ stderr: "❌ Output file missing.", output: "" });
+      }
+      try {
+        const output = fs.readFileSync(outputPath, "utf-8");
+        resolve({ output, stderr });
+      } catch (readErr) {
+        reject({ stderr: `❌ Could not read output file: ${readErr.message}`, output: "" });
+      }
+    });
+  });
+};
+
+module.exports = { executeCode };

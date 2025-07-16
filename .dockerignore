@@ -1,0 +1,8 @@
+node_modules
+outputs
+test_cases
+build
+dist
+*.log
+*.tar.gz
+.env
