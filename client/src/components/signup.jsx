@@ -49,12 +49,15 @@ function Signup({ setUser }) {
 
     try {
       const res = await axios.post(
+        
         `${process.env.REACT_APP_API_URL}/api/auth/signup`,
         { email, password },
         { withCredentials: true }
       );
       setUser(res.data.user);
       navigate("/");
+      console.log("API URL:", process.env.REACT_APP_API_URL);
+
     } catch (err) {
       setLoading(false);
       if (err.response?.data?.errors) {
