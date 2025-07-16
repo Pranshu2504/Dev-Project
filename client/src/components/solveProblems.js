@@ -23,6 +23,8 @@ import Editor from "@monaco-editor/react";
 import { DarkModeContext } from "../context/DarkMode";
 
 const languages = ["cpp", "python", "java"];
+const API = process.env.REACT_APP_API_URL;
+const AI_API = process.env.REACT_APP_AI_URL;
 
 const languageBoilerplates = {
   cpp: `#include <bits/stdc++.h>
@@ -64,7 +66,7 @@ export default function SolveProblem() {
 
   useEffect(() => {
     const fetchProblem = async () => {
-      const res = await axios.get(`http://localhost:5000/api/problems/${id}`);
+      const res = await axios.get(`${API}/api/problems/${id}`);
       setProblem(res.data);
     };
     fetchProblem();
@@ -74,7 +76,7 @@ export default function SolveProblem() {
     setLoading(true);
     setResults(null);
     try {
-      const res = await axios.post(`http://localhost:5000/api/problems/${id}/run`, {
+      const res = await axios.post(`${API}/api/problems/${id}/run`, {
         code,
         language,
         customInput,
@@ -90,7 +92,7 @@ export default function SolveProblem() {
     setLoading(true);
     setResults(null);
     try {
-      const res = await axios.post(`http://localhost:5000/api/problems/${id}/submit`, {
+      const res = await axios.post(`${API}/api/problems/${id}/submit`, {
         code,
         language,
       });
@@ -104,7 +106,7 @@ export default function SolveProblem() {
   const handleAIHelp = async () => {
     setLoadingAI(true);
     try {
-      const res = await axios.post("http://localhost:7000/api/ai-help", {
+      const res = await axios.post(`${AI_API}/api/ai-help`, {
         prompt: `Problem Title: ${problem.title}\n\nProblem Description: ${problem.description}\n\nUser Code:\n${code}\n\nSuggest improvements or optimizations  and error handling in 4 short bullet points.`,
       });
       setAiHelp(res.data.answer || "AI could not generate a response.");
@@ -211,22 +213,11 @@ export default function SolveProblem() {
                       .split("\n")
                       .filter((point) => point.trim() !== "")
                       .map((point, idx) => (
-                        <Box
-                          key={idx}
-                          sx={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 1.5,
-                            mb: 2,
-                            pl: 1,
-                          }}
-                        >
+                        <Box key={idx} sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, mb: 2, pl: 1 }}>
                           <Typography variant="h6" sx={{ color: darkMode ? "#81c784" : "#4caf50" }}>
                             •
                           </Typography>
-                          <Typography sx={{ whiteSpace: "pre-wrap", fontSize: "0.95rem" }}>
-                            {point}
-                          </Typography>
+                          <Typography sx={{ whiteSpace: "pre-wrap", fontSize: "0.95rem" }}>{point}</Typography>
                         </Box>
                       ))}
                   </Paper>

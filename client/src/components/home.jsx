@@ -22,7 +22,6 @@ import {
   Avatar,
   Button,
   CssBaseline,
-  Switch,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate, useLocation, Link } from "react-router-dom";
@@ -37,13 +36,14 @@ function Home({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
+  const API = process.env.REACT_APP_API_URL;
 
   const { darkMode, toggleDarkMode } = useContext(DarkModeContext);
 
   useEffect(() => {
     const fetchProblems = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/problems");
+        const res = await axios.get(`${API}/api/problems`);
         setProblems(res.data);
       } catch (err) {
         console.error("Error fetching problems:", err);
@@ -52,7 +52,7 @@ function Home({ user }) {
       }
     };
     fetchProblems();
-  }, []);
+  }, [API]);
 
   const filteredProblems = problems.filter((problem) =>
     problem.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -77,8 +77,9 @@ function Home({ user }) {
   const handleMenuClose = () => {
     setAnchorEl(null);
   };
+
   const handleLogout = async () => {
-    await axios.get("http://localhost:5000/api/auth/logout", { withCredentials: true });
+    await axios.get(`${API}/api/auth/logout`, { withCredentials: true });
     window.location.reload();
   };
 
@@ -103,19 +104,19 @@ function Home({ user }) {
                   Home
                 </Button>
               )}
-             
+
               {user.role === "admin" && (
                 <Button color="inherit" onClick={() => navigate("/create-problem")}>
                   + Add Problem
                 </Button>
               )}
+
               <IconButton onClick={handleMenuOpen} color="inherit">
                 <Avatar sx={{ width: 32, height: 32 }}>
                   {user.username?.[0]?.toUpperCase() || "U"}
                 </Avatar>
               </IconButton>
               <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-                
                 <MenuItem onClick={handleLogout}>Logout</MenuItem>
               </Menu>
             </>

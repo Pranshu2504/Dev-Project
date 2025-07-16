@@ -19,6 +19,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { DarkModeContext } from "../context/DarkMode";
 
+const API = process.env.REACT_APP_API_URL;
+
 function ProblemDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -35,7 +37,7 @@ function ProblemDetails() {
   useEffect(() => {
     const fetchProblem = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/problems/${id}`);
+        const res = await axios.get(`${API}/api/problems/${id}`);
         setProblem(res.data);
       } catch (err) {
         console.error("❌ Error loading problem:", err);
@@ -46,13 +48,12 @@ function ProblemDetails() {
 
     const fetchUser = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/auth/me", {
+        const res = await axios.get(`${API}/api/auth/me`, {
           withCredentials: true,
         });
         const loggedInUser = res.data.user;
         setUser(loggedInUser);
 
-        // If user is not admin, redirect to solve
         if (loggedInUser?.role !== "admin") {
           navigate(`/solve/${id}`);
         }
@@ -72,7 +73,7 @@ function ProblemDetails() {
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`http://localhost:5000/api/problems/${id}`, {
+      await axios.delete(`${API}/api/problems/${id}`, {
         withCredentials: true,
       });
       navigate("/problems");
@@ -141,7 +142,7 @@ function ProblemDetails() {
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
             <MenuItem onClick={() => {
-              axios.get("http://localhost:5000/api/auth/logout", { withCredentials: true })
+              axios.get(`${API}/api/auth/logout`, { withCredentials: true })
                 .then(() => navigate("/login"));
             }}>
               🚪 Logout

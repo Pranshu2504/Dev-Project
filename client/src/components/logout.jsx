@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 
 export default function Logout({ setUser }) {
   const navigate = useNavigate();
+  const API = process.env.REACT_APP_API_URL;
 
   useEffect(() => {
     const logout = async () => {
       try {
-        await fetch("http://localhost:5000/api/auth/logout", {
-          method: "GET", // ✅ fix here
+        await fetch(`${API}/api/auth/logout`, {
+          method: "GET",
           credentials: "include",
         });
         setUser(null);
@@ -18,7 +19,7 @@ export default function Logout({ setUser }) {
       }
     };
     logout();
-  }, [navigate, setUser]);
+  }, [navigate, setUser, API]);
 
   return <p>Logging out...</p>;
 }

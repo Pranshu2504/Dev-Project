@@ -21,6 +21,8 @@ import EditProblem from "./components/EditProblem";
 import SolveProblem from "./components/solveProblems";
 import Home from "./components/home";
 
+const API = process.env.REACT_APP_API_URL;
+
 function AppContent() {
   const { darkMode } = useContext(DarkModeContext);
   const [user, setUser] = useState(null);
@@ -35,7 +37,7 @@ function AppContent() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/auth/me", {
+        const res = await axios.get(`${API}/api/auth/me`, {
           withCredentials: true,
         });
         setUser(res.data.user);
@@ -63,7 +65,6 @@ function AppContent() {
           <Route path="/problems/:id" element={<ProblemDetails />} />
           <Route path="/create-problem" element={<CreateProblem />} />
           <Route path="/edit-problem/:id" element={<EditProblem />} />
-          
         </Routes>
       </Router>
     </ThemeProvider>

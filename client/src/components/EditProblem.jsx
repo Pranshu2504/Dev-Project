@@ -22,6 +22,7 @@ function EditProblem() {
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const { darkMode } = useContext(DarkModeContext);
+  const API = process.env.REACT_APP_API_URL;
 
   const theme = createTheme({
     palette: {
@@ -38,7 +39,7 @@ function EditProblem() {
   useEffect(() => {
     const fetchProblem = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/problems/${id}`);
+        const res = await axios.get(`${API}/api/problems/${id}`);
         setTitle(res.data.title);
         setDescription(res.data.description);
         setTestCases(res.data.testCases.length > 0 ? res.data.testCases : [{ input: "", expectedOutput: "" }]);
@@ -49,7 +50,7 @@ function EditProblem() {
       }
     };
     fetchProblem();
-  }, [id]);
+  }, [id, API]);
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -80,17 +81,17 @@ function EditProblem() {
         expectedOutput: tc.expectedOutput.trim()
       }));
 
-      await axios.put(`http://localhost:5000/api/problems/${id}`, {
+      await axios.put(`${API}/api/problems/${id}`, {
         title,
         description,
-        difficulty: "Easy", // Update as needed
+        difficulty: "Easy", // Adjust if needed
         testCases: testCasesJson
       }, {
         withCredentials: true
       });
 
       setSuccess(true);
-      setTimeout(() => navigate("/"), 1500); // Redirect after toast
+      setTimeout(() => navigate("/"), 1500);
     } catch (err) {
       setError(err.response?.data?.error || "Failed to update problem");
     }

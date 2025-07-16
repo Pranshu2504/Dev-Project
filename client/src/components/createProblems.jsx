@@ -23,6 +23,7 @@ function CreateProblem() {
   const navigate = useNavigate();
 
   const { darkMode } = useContext(DarkModeContext);
+  const API = process.env.REACT_APP_API_URL;
 
   const theme = createTheme({
     palette: {
@@ -62,7 +63,7 @@ function CreateProblem() {
     }
 
     try {
-      await axios.post("http://localhost:5000/api/problems", {
+      await axios.post(`${API}/api/problems`, {
         title,
         description,
         difficulty,
