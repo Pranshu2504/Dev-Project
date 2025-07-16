@@ -1,19 +1,28 @@
-const fs = require("fs");
-const path = require("path");
+const mongoose = require("mongoose");
+const { Readable } = require("stream");
 const { v4: uuid } = require("uuid");
 
-const codesDir = path.join("/mnt/data/codes");
+let gridfsBucket;
 
-if (!fs.existsSync(codesDir)) {
-  fs.mkdirSync(codesDir, { recursive: true });
-}
+mongoose.connection.on("connected", () => {
+  gridfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: "codefiles",
+  });
+});
 
-const generateFile = (extension, content) => {
+const generateFile = async (extension, content) => {
   const jobId = uuid();
   const filename = `${jobId}.${extension}`;
-  const filePath = path.join(codesDir, filename);
-  fs.writeFileSync(filePath, content);
-  return filePath;
+  const buffer = Buffer.from(content, "utf-8");
+
+  const stream = Readable.from(buffer);
+  const uploadStream = gridfsBucket.openUploadStream(filename);
+  stream.pipe(uploadStream);
+
+  return new Promise((resolve, reject) => {
+    uploadStream.on("finish", () => resolve(filename));
+    uploadStream.on("error", reject);
+  });
 };
 
 module.exports = { generateFile };

@@ -1,22 +1,43 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const fs = require("fs");
 const path = require("path");
 const { generateFile } = require("./generateFile");
 const { executeCode } = require("./execute");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const mongoose = require("mongoose");
+const Grid = require("gridfs-stream");
 
 const app = express();
 const PORT = process.env.PORT || 7000;
-const PROBLEM_DATA_DIR = path.join("/mnt/data/problem_data");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+let gfs;
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+const conn = mongoose.connection;
+conn.once("open", () => {
+  gfs = Grid(conn.db, mongoose.mongo);
+  gfs.collection("problem_data");
+  console.log("✅ MongoDB GridFS initialized");
+});
 
 app.use(cors());
 app.use(express.json());
 
 const normalize = (s) =>
   s.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").map(l => l.trim()).join("\n");
+
+const getFileText = (filename) =>
+  new Promise((resolve, reject) => {
+    let data = "";
+    const readstream = gfs.createReadStream({ filename });
+    readstream.on("data", (chunk) => (data += chunk));
+    readstream.on("end", () => resolve(data));
+    readstream.on("error", reject);
+  });
 
 // ---------------- /api/run ----------------
 app.post("/api/run", async (req, res) => {
@@ -30,38 +51,33 @@ app.post("/api/run", async (req, res) => {
   try {
     const ext = extMap[language];
     const filepath = generateFile(ext, code);
-    const problemPath = path.join(PROBLEM_DATA_DIR, problemId);
 
-    const inputPath = path.join(problemPath, "input.txt");
-    const expectedPath = path.join(problemPath, "expected_output.txt");
+    const inputRaw = await getFileText(`${problemId}_input.txt`);
+    const outputRaw = await getFileText(`${problemId}_expected_output.txt`);
+    const inputArr = JSON.parse(inputRaw);
+    const expectedArr = JSON.parse(outputRaw);
 
-    let testResults = [];
+    const testResults = [];
 
-    if (fs.existsSync(inputPath) && fs.existsSync(expectedPath)) {
-      const inputArr = JSON.parse(fs.readFileSync(inputPath, "utf-8"));
-      const expectedArr = JSON.parse(fs.readFileSync(expectedPath, "utf-8"));
+    for (let i = 0; i < Math.min(3, inputArr.length); i++) {
+      const input = inputArr[i];
+      const expected = expectedArr[i] || "";
+      const { output = "", stderr = "" } = await executeCode({ language, filepath, input });
 
-      for (let i = 0; i < Math.min(3, inputArr.length); i++) {
-        const input = inputArr[i];
-        const expected = expectedArr[i] || "";
-
-        const { output = "", stderr = "" } = await executeCode({ language, filepath, input });
-
-        if (stderr) {
-          return res.status(200).json({
-            error: stderr,
-            stderr,
-            testResults: [],
-          });
-        }
-
-        testResults.push({
-          testCase: i + 1,
-          actualOutput: normalize(output),
-          expectedOutput: normalize(expected),
-          passed: normalize(output) === normalize(expected),
+      if (stderr) {
+        return res.status(200).json({
+          error: stderr,
+          stderr,
+          testResults: [],
         });
       }
+
+      testResults.push({
+        testCase: i + 1,
+        actualOutput: normalize(output),
+        expectedOutput: normalize(expected),
+        passed: normalize(output) === normalize(expected),
+      });
     }
 
     let customResult = null;
@@ -94,24 +110,17 @@ app.post("/api/problems/:id/submit", async (req, res) => {
   try {
     const ext = extMap[language];
     const filepath = generateFile(ext, code);
-    const problemDir = path.join(PROBLEM_DATA_DIR, problemId);
 
-    const inputFile = path.join(problemDir, "input.txt");
-    const outputFile = path.join(problemDir, "expected_output.txt");
-
-    if (!fs.existsSync(inputFile) || !fs.existsSync(outputFile)) {
-      return res.status(400).json({ error: "Test case files missing." });
-    }
-
-    const inputs = JSON.parse(fs.readFileSync(inputFile, "utf-8"));
-    const outputs = JSON.parse(fs.readFileSync(outputFile, "utf-8"));
+    const inputRaw = await getFileText(`${problemId}_input.txt`);
+    const outputRaw = await getFileText(`${problemId}_expected_output.txt`);
+    const inputArr = JSON.parse(inputRaw);
+    const expectedArr = JSON.parse(outputRaw);
 
     const testResults = [];
 
-    for (let i = 0; i < inputs.length; i++) {
-      const input = inputs[i];
-      const expected = outputs[i] || "";
-
+    for (let i = 0; i < inputArr.length; i++) {
+      const input = inputArr[i];
+      const expected = expectedArr[i] || "";
       const { output = "", stderr = "" } = await executeCode({ language, filepath, input });
 
       if (stderr) {
@@ -132,7 +141,6 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     }
 
     const allPassed = testResults.every(t => t.passed);
-
     res.status(200).json({
       status: allPassed ? "pass" : "fail",
       results: testResults,
@@ -141,8 +149,8 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     console.error("🔥 Submission Error:", err);
     res.status(200).json({
       status: "error",
-      error: err.stderr || err.message || "Unknown compilation error",
-      stderr: err.stderr || err.message || "Unknown compilation error",
+      error: err.stderr || err.message || "Unknown error",
+      stderr: err.stderr || err.message || "Unknown error",
       results: [],
     });
   }

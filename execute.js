@@ -1,65 +1,72 @@
 const { exec } = require("child_process");
+const mongoose = require("mongoose");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
-const { v4: uuid } = require("uuid");
+
+const tempDir = os.tmpdir();
+let gridfsBucket;
+
+mongoose.connection.on("connected", () => {
+  gridfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: "codefiles",
+  });
+});
 
 const executeCode = ({ language, filepath, input }) => {
-  return new Promise((resolve) => {
-    const jobId = uuid();
-    const inputPath = path.join("/mnt/data/outputs", `${jobId}_input.txt`);
-    const outputPath = path.join("/mnt/data/outputs", `${jobId}_output.txt`);
-    fs.writeFileSync(inputPath, input || "");
+  return new Promise((resolve, reject) => {
+    const tempCodePath = path.join(tempDir, filepath);
 
-    let compileCmd = "";
-    let runCmd = "";
-    let tempBinaryPath = null;
+    const download = gridfsBucket.openDownloadStreamByName(filepath);
+    const codeWriteStream = fs.createWriteStream(tempCodePath);
+    download.pipe(codeWriteStream);
 
-    switch (language) {
-      case "cpp":
-        tempBinaryPath = filepath.replace(/\.cpp$/, `_${jobId}.out`);
-        compileCmd = `g++ "${filepath}" -o "${tempBinaryPath}"`;
-        runCmd = `${tempBinaryPath} < "${inputPath}" > "${outputPath}"`;
-        break;
-      case "python":
-        runCmd = `python3 "${filepath}" < "${inputPath}" > "${outputPath}"`;
-        break;
-      case "java": {
-        const className = path.basename(filepath).replace(".java", "");
-        compileCmd = `javac "${filepath}"`;
-        runCmd = `java -cp "${path.dirname(filepath)}" ${className} < "${inputPath}" > "${outputPath}"`;
-        break;
+    codeWriteStream.on("finish", () => {
+      const inputPath = path.join(tempDir, `${filepath}.input.txt`);
+      const outputPath = path.join(tempDir, `${filepath}.output.txt`);
+      fs.writeFileSync(inputPath, input || "");
+
+      let compileCmd = "";
+      let runCmd = "";
+
+      switch (language) {
+        case "cpp":
+          const outPath = tempCodePath.replace(".cpp", ".out");
+          compileCmd = `g++ "${tempCodePath}" -o "${outPath}"`;
+          runCmd = `${outPath} < "${inputPath}" > "${outputPath}"`;
+          break;
+        case "python":
+          runCmd = `python3 "${tempCodePath}" < "${inputPath}" > "${outputPath}"`;
+          break;
+        case "java":
+          const className = path.basename(tempCodePath).replace(".java", "");
+          compileCmd = `javac "${tempCodePath}"`;
+          runCmd = `java -cp "${path.dirname(tempCodePath)}" ${className} < "${inputPath}" > "${outputPath}"`;
+          break;
+        default:
+          return resolve({ output: "", stderr: "Unsupported language" });
       }
-      default:
-        return resolve({ stderr: "Unsupported language", output: "" });
-    }
 
-    const cleanup = () => {
-      if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-      if (tempBinaryPath && fs.existsSync(tempBinaryPath)) fs.unlinkSync(tempBinaryPath);
-    };
+      const run = () => {
+        exec(runCmd, { timeout: 5000 }, (err, stdout, stderr) => {
+          const output = fs.existsSync(outputPath)
+            ? fs.readFileSync(outputPath, "utf-8")
+            : "";
+          resolve({ output, stderr: stderr || (err ? err.message : "") });
+        });
+      };
 
-    const run = () => {
-      exec(runCmd, { timeout: 5000 }, (err, stdout, stderr) => {
-        const output = fs.existsSync(outputPath)
-          ? fs.readFileSync(outputPath, "utf-8")
-          : "";
-        cleanup();
-        resolve({ output, stderr: stderr || (err ? err.message : "") });
-      });
-    };
-
-    if (compileCmd) {
-      exec(compileCmd, (compileErr, _, compileStderr) => {
-        if (compileErr) {
-          cleanup();
-          return resolve({ output: "", stderr: compileStderr || compileErr.message });
-        }
+      if (compileCmd) {
+        exec(compileCmd, (err, _, stderr) => {
+          if (err) return resolve({ output: "", stderr: stderr || err.message });
+          run();
+        });
+      } else {
         run();
-      });
-    } else {
-      run();
-    }
+      }
+    });
+
+    codeWriteStream.on("error", reject);
   });
 };
 
