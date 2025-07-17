@@ -35,37 +35,29 @@ function ProblemDetails() {
   });
 
   useEffect(() => {
-    const fetchProblem = async () => {
+    const fetchData = async () => {
       try {
-        const res = await axios.get(`${API}/api/problems/${id}`);
-        setProblem(res.data);
-      } catch (err) {
-        console.error("❌ Error loading problem:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+        const [problemRes, userRes] = await Promise.all([
+          axios.get(`${API}/api/problems/${id}`),
+          axios.get(`${API}/api/auth/me`, { withCredentials: true }),
+        ]);
 
-    const fetchUser = async () => {
-      try {
-        const res = await axios.get(`${API}/api/auth/me`, {
-          withCredentials: true,
-        });
-        const loggedInUser = res.data.user;
+        const loggedInUser = userRes.data.user;
+        setProblem(problemRes.data);
         setUser(loggedInUser);
 
         if (loggedInUser?.role !== "admin") {
           navigate(`/solve/${id}`);
         }
       } catch (err) {
-        console.error("❌ Auth failed, redirecting to login.");
-        setUser(null);
+        console.error("❌ Error fetching data:", err);
         navigate("/login");
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchProblem();
-    fetchUser();
+    fetchData();
   }, [id, navigate]);
 
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
@@ -114,37 +106,37 @@ function ProblemDetails() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-
       <AppBar position="static" color="primary">
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold" }}>
             🧩 Problem Details
           </Typography>
-
           <IconButton onClick={toggleDarkMode} color="inherit" sx={{ mr: 1 }}>
             {darkMode ? "🌙" : "🌞"}
           </IconButton>
-
           {user && (
-            <Typography sx={{ mr: 2 }}>
-              {user.email}
-            </Typography>
+            <Typography sx={{ mr: 2 }}>{user.email}</Typography>
           )}
-
           <Button color="inherit" onClick={() => navigate("/")}>
             🏠 Home
           </Button>
-
           <IconButton onClick={handleMenuOpen} color="inherit">
             <Avatar sx={{ width: 32, height: 32 }}>
               {user?.email?.[0]?.toUpperCase() || "U"}
             </Avatar>
           </IconButton>
-          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-            <MenuItem onClick={() => {
-              axios.get(`${API}/api/auth/logout`, { withCredentials: true })
-                .then(() => navigate("/login"));
-            }}>
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleMenuClose}
+          >
+            <MenuItem
+              onClick={() => {
+                axios
+                  .get(`${API}/api/auth/logout`, { withCredentials: true })
+                  .then(() => navigate("/login"));
+              }}
+            >
               🚪 Logout
             </MenuItem>
           </Menu>
@@ -166,7 +158,6 @@ function ProblemDetails() {
         <Typography variant="h4" fontWeight="bold" gutterBottom>
           {problem.title}
         </Typography>
-
         <Typography variant="subtitle1" gutterBottom>
           <strong>Difficulty:</strong> {problem.difficulty}
         </Typography>
@@ -180,7 +171,6 @@ function ProblemDetails() {
           >
             🧪 Solve
           </Button>
-
           {userIsAdmin && (
             <>
               <Button
@@ -190,11 +180,7 @@ function ProblemDetails() {
               >
                 ✏️ Edit
               </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={handleDelete}
-              >
+              <Button variant="outlined" color="error" onClick={handleDelete}>
                 ❌ Delete
               </Button>
             </>
