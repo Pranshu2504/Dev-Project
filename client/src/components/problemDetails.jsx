@@ -46,6 +46,7 @@ function ProblemDetails() {
         setProblem(problemRes.data);
         setUser(loggedInUser);
 
+        // ⛔️ Only redirect if user is NOT admin
         if (loggedInUser?.role !== "admin") {
           navigate(`/solve/${id}`);
         }

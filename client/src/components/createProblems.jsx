@@ -62,28 +62,33 @@ function CreateProblem() {
       return;
     }
 
+    const payload = {
+      title,
+      description,
+      difficulty,
+      testCases: testCases.map(tc => ({
+        input: tc.input.trim(),
+        expectedOutput: tc.output.trim()
+      }))
+    };
+
     try {
-      await axios.post(`${API}/api/problems`, {
-        title,
-        description,
-        difficulty,
-        testCases: testCases.map(tc => ({
-          input: tc.input.trim(),
-          expectedOutput: tc.output.trim()
-        }))
-      });
+      console.log("🟡 Submitting Problem:", payload); // debug
+
+      await axios.post(`${API}/api/problems`, payload, { withCredentials: true });
 
       setSuccess(true);
       setTitle("");
       setDescription("");
       setDifficulty("");
       setTestCases([{ input: "", output: "" }]);
+
+      setTimeout(() => {
+        navigate("/");
+      }, 1500); // redirect after short delay
     } catch (err) {
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else {
-        setError("Problem creation failed.");
-      }
+      console.error("❌ Problem creation error:", err.response || err.message);
+      setError(err.response?.data?.error || "Problem creation failed.");
     }
   };
 
@@ -198,7 +203,7 @@ function CreateProblem() {
         </Box>
       </motion.div>
 
-      <Snackbar open={success} autoHideDuration={3000} onClose={() => setSuccess(false)}>
+      <Snackbar open={success} autoHideDuration={1200} onClose={() => setSuccess(false)}>
         <Alert severity="success" sx={{ width: "100%" }}>
           Problem created successfully!
         </Alert>
