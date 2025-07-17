@@ -1,44 +1,27 @@
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import {
-  Box, TextField, Button, MenuItem, Typography, Paper,
-  CssBaseline, Snackbar, Alert, AppBar, Toolbar, IconButton,
-  Avatar, Menu, MenuItem as MuiMenuItem, createTheme, ThemeProvider
+  Box,
+  Button,
+  TextField,
+  Typography,
+  IconButton,
+  Paper,
+  Snackbar,
+  Alert,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { DarkModeContext } from "../context/DarkMode";
-import { motion } from "framer-motion";
+import AddCircleIcon from "@mui/icons-material/AddCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
-const difficulties = ["Easy", "Medium", "Hard"];
-
-function CreateProblem() {
+const CreateProblem = () => {
+  const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [difficulty, setDifficulty] = useState("");
+  const [difficulty, setDifficulty] = useState("Easy");
   const [testCases, setTestCases] = useState([{ input: "", output: "" }]);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
-  const [anchorEl, setAnchorEl] = useState(null);
-  const navigate = useNavigate();
 
-  const { darkMode } = useContext(DarkModeContext);
-  const API = process.env.REACT_APP_API_URL;
-
-  const theme = createTheme({
-    palette: {
-      mode: darkMode ? "dark" : "light",
-      primary: {
-        main: darkMode ? "#90caf9" : "#1976d2",
-      },
-    },
-    shape: {
-      borderRadius: 16,
-    },
-  });
-
-  const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
-  const handleMenuClose = () => setAnchorEl(null);
+  const [openSnackbar, setOpenSnackbar] = useState(false);
 
   const handleTestCaseChange = (index, field, value) => {
     const updated = [...testCases];
@@ -46,176 +29,124 @@ function CreateProblem() {
     setTestCases(updated);
   };
 
-  const addTestCase = () => {
+  const handleAddTestCase = () => {
     setTestCases([...testCases, { input: "", output: "" }]);
   };
 
-  const deleteTestCase = (index) => {
+  const handleDeleteTestCase = (index) => {
     const updated = [...testCases];
     updated.splice(index, 1);
-    setTestCases(updated.length > 0 ? updated : [{ input: "", output: "" }]);
+    setTestCases(updated);
   };
 
   const handleSubmit = async () => {
-    if (!title || !description || !difficulty || testCases.some(tc => !tc.input || !tc.output)) {
-      setError("Please fill out all fields and test cases.");
-      return;
-    }
-
-    const payload = {
-      title,
-      description,
-      difficulty,
-      testCases: testCases.map(tc => ({
-        input: tc.input.trim(),
-        expectedOutput: tc.output.trim()
-      }))
-    };
-
     try {
-      console.log("🟡 Submitting Problem:", payload); // debug
+      const payload = {
+        title,
+        description,
+        difficulty,
+        testCases: testCases.map((tc) => ({
+          input: tc.input.trim(),
+          expectedOutput: tc.output.trim(), // ✅ This is key
+        })),
+      };
 
-      await axios.post(`${API}/api/problems`, payload, { withCredentials: true });
-
-      setSuccess(true);
-      setTitle("");
-      setDescription("");
-      setDifficulty("");
-      setTestCases([{ input: "", output: "" }]);
-
-      setTimeout(() => {
-        navigate("/");
-      }, 1500); // redirect after short delay
+      await axios.post("/api/problems", payload);
+      setOpenSnackbar(true);
+      setTimeout(() => navigate("/problems"), 1500);
     } catch (err) {
-      console.error("❌ Problem creation error:", err.response || err.message);
-      setError(err.response?.data?.error || "Problem creation failed.");
+      console.error("❌ Error creating problem:", err.response?.data || err);
     }
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <Box p={4}>
+      <Typography variant="h4" gutterBottom>
+        Create New Problem
+      </Typography>
 
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold" }}>
-            ➕ Create Problem
-          </Typography>
-          <Button color="inherit" onClick={() => navigate("/")}>🏠 Home</Button>
-          <IconButton onClick={handleMenuOpen} color="inherit">
-            <Avatar sx={{ width: 32, height: 32 }}>U</Avatar>
-          </IconButton>
-          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-            <MuiMenuItem onClick={() => navigate("/login")}>Logout</MuiMenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
+      <TextField
+        label="Title"
+        fullWidth
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        margin="normal"
+      />
+      <TextField
+        label="Description"
+        fullWidth
+        multiline
+        rows={6}
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        margin="normal"
+      />
+      <TextField
+        label="Difficulty"
+        fullWidth
+        value={difficulty}
+        onChange={(e) => setDifficulty(e.target.value)}
+        margin="normal"
+      />
 
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <Box component={Paper} elevation={6} sx={{ maxWidth: 800, mx: "auto", mt: 6, p: 4, borderRadius: 4 }}>
-          <Typography variant="h5" mb={3} fontWeight="bold">
-            ✍️ Create New Problem
-          </Typography>
-
+      <Typography variant="h6" mt={4}>
+        Test Cases
+      </Typography>
+      {testCases.map((tc, index) => (
+        <Paper key={index} sx={{ p: 2, mt: 2, position: "relative" }}>
           <TextField
-            label="Problem Title"
-            fullWidth
-            margin="normal"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-
-          <TextField
-            label="Description"
+            label={`Input ${index + 1}`}
             fullWidth
             multiline
-            rows={6}
+            rows={2}
+            value={tc.input}
+            onChange={(e) => handleTestCaseChange(index, "input", e.target.value)}
             margin="normal"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
           />
-
           <TextField
-            label="Difficulty"
-            select
+            label={`Expected Output ${index + 1}`}
             fullWidth
+            multiline
+            rows={2}
+            value={tc.output}
+            onChange={(e) => handleTestCaseChange(index, "output", e.target.value)}
             margin="normal"
-            value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value)}
+          />
+          <IconButton
+            sx={{ position: "absolute", top: 8, right: 8 }}
+            onClick={() => handleDeleteTestCase(index)}
           >
-            {difficulties.map((level) => (
-              <MenuItem key={level} value={level}>
-                {level}
-              </MenuItem>
-            ))}
-          </TextField>
+            <DeleteIcon />
+          </IconButton>
+        </Paper>
+      ))}
 
-          <Box mt={4}>
-            <Typography variant="h6" gutterBottom>🧪 Test Cases</Typography>
-            {testCases.map((test, index) => (
-              <Paper key={index} sx={{ p: 2, mb: 2, borderRadius: 3, position: "relative" }}>
-                <TextField
-                  label={`Input ${index + 1}`}
-                  fullWidth
-                  multiline
-                  rows={2}
-                  value={test.input}
-                  onChange={(e) => handleTestCaseChange(index, "input", e.target.value)}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  label={`Expected Output ${index + 1}`}
-                  fullWidth
-                  multiline
-                  rows={2}
-                  value={test.output}
-                  onChange={(e) => handleTestCaseChange(index, "output", e.target.value)}
-                />
-                {testCases.length > 1 && (
-                  <IconButton
-                    onClick={() => deleteTestCase(index)}
-                    sx={{ position: "absolute", top: 8, right: 8 }}
-                    color="error"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                )}
-              </Paper>
-            ))}
-            <Button variant="outlined" sx={{ mt: 1 }} onClick={addTestCase}>
-              ➕ Add Test Case
-            </Button>
-          </Box>
+      <Button
+        variant="outlined"
+        startIcon={<AddCircleIcon />}
+        sx={{ mt: 2 }}
+        onClick={handleAddTestCase}
+      >
+        Add Test Case
+      </Button>
 
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ mt: 4, fontWeight: "bold", py: 1.5 }}
-            fullWidth
-            onClick={handleSubmit}
-          >
-            🚀 Submit Problem
-          </Button>
-        </Box>
-      </motion.div>
+      <Box mt={4}>
+        <Button variant="contained" color="primary" onClick={handleSubmit}>
+          Submit Problem
+        </Button>
+      </Box>
 
-      <Snackbar open={success} autoHideDuration={1200} onClose={() => setSuccess(false)}>
+      <Snackbar
+        open={openSnackbar}
+        autoHideDuration={2000}
+        onClose={() => setOpenSnackbar(false)}
+      >
         <Alert severity="success" sx={{ width: "100%" }}>
           Problem created successfully!
         </Alert>
       </Snackbar>
-
-      <Snackbar open={Boolean(error)} autoHideDuration={4000} onClose={() => setError("")}>
-        <Alert severity="error" sx={{ width: "100%" }}>
-          {error}
-        </Alert>
-      </Snackbar>
-    </ThemeProvider>
+    </Box>
   );
-}
+};
 
 export default CreateProblem;

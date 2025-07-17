@@ -45,11 +45,6 @@ function ProblemDetails() {
         const loggedInUser = userRes.data.user;
         setProblem(problemRes.data);
         setUser(loggedInUser);
-
-        // ⛔️ Only redirect if user is NOT admin
-        if (loggedInUser?.role !== "admin") {
-          navigate(`/solve/${id}`);
-        }
       } catch (err) {
         console.error("❌ Error fetching data:", err);
         navigate("/login");
@@ -115,9 +110,7 @@ function ProblemDetails() {
           <IconButton onClick={toggleDarkMode} color="inherit" sx={{ mr: 1 }}>
             {darkMode ? "🌙" : "🌞"}
           </IconButton>
-          {user && (
-            <Typography sx={{ mr: 2 }}>{user.email}</Typography>
-          )}
+          {user && <Typography sx={{ mr: 2 }}>{user.email}</Typography>}
           <Button color="inherit" onClick={() => navigate("/")}>
             🏠 Home
           </Button>
@@ -172,6 +165,7 @@ function ProblemDetails() {
           >
             🧪 Solve
           </Button>
+
           {userIsAdmin && (
             <>
               <Button
@@ -181,7 +175,11 @@ function ProblemDetails() {
               >
                 ✏️ Edit
               </Button>
-              <Button variant="outlined" color="error" onClick={handleDelete}>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleDelete}
+              >
                 ❌ Delete
               </Button>
             </>
