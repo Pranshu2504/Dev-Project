@@ -14,8 +14,8 @@ conn.once("open", () => {
   });
 });
 
-// Utility to read GridFS file to string
-const readGridFSFile = async (filename) => {
+// Utility: read a GridFS file
+const readGridFSFile = (filename) => {
   return new Promise((resolve, reject) => {
     let data = "";
     const stream = gfs.openDownloadStreamByName(filename);
@@ -25,22 +25,30 @@ const readGridFSFile = async (filename) => {
   });
 };
 
-// Utility to write file to GridFS
-const writeGridFSFile = async (filename, content) => {
+// Utility: write file to GridFS, deleting old if exists
+const writeGridFSFile = (filename, content) => {
   return new Promise((resolve, reject) => {
-    // Delete previous if exists
-    gfs.deleteMany
     gfs.find({ filename }).toArray((err, files) => {
-      if (files.length > 0) {
-        gfs.delete(files[0]._id, () => {
-          const stream = gfs.openUploadStream(filename);
-          Readable.from(content).pipe(stream).on("finish", resolve).on("error", reject);
-        });
-      } else {
+      if (err) return reject(err);
+      const upload = () => {
         const stream = gfs.openUploadStream(filename);
         Readable.from(content).pipe(stream).on("finish", resolve).on("error", reject);
+      };
+      if (files.length > 0) {
+        gfs.delete(files[0]._id, upload);
+      } else {
+        upload();
       }
     });
+  });
+};
+
+// Utility: delete GridFS file if exists
+const deleteGridFSFileIfExists = (filename) => {
+  gfs.find({ filename }).toArray((err, files) => {
+    if (!err && files.length > 0) {
+      gfs.delete(files[0]._id, () => {});
+    }
   });
 };
 
@@ -49,16 +57,21 @@ exports.createProblem = async (req, res) => {
   try {
     const { title, description, difficulty, testCases } = req.body;
 
-    if (!title || !description || !testCases?.length) {
-      return res.status(400).json({ error: "Title, description, and test cases are required." });
+    if (!title || !description || !difficulty || !testCases?.length) {
+      return res.status(400).json({ error: "All fields and at least one test case are required." });
+    }
+
+    const exists = await Problem.findOne({ title });
+    if (exists) {
+      return res.status(400).json({ error: "Problem with this title already exists." });
     }
 
     const newProblem = new Problem({ title, description, difficulty });
     await newProblem.save();
 
     const id = newProblem._id.toString();
-    const inputArr = testCases.map(tc => tc.input.trim());
-    const outputArr = testCases.map(tc => tc.expectedOutput.trim());
+    const inputArr = testCases.map((tc) => tc.input.trim());
+    const outputArr = testCases.map((tc) => tc.expectedOutput.trim());
 
     await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputArr, null, 2));
     await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputArr, null, 2));
@@ -66,11 +79,11 @@ exports.createProblem = async (req, res) => {
     res.status(201).json({ message: "Problem created successfully", id });
   } catch (err) {
     console.error("❌ Error in createProblem:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// Get a problem
+// Get a problem by ID
 exports.getProblem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -81,33 +94,37 @@ exports.getProblem = async (req, res) => {
     try {
       const input = JSON.parse(await readGridFSFile(`${id}_input.txt`));
       const output = JSON.parse(await readGridFSFile(`${id}_expected_output.txt`));
-      testCases = input.map((inp, i) => ({
-        input: inp,
-        expectedOutput: output[i] || ""
+      testCases = input.map((input, i) => ({
+        input,
+        expectedOutput: output[i] || "",
       }));
-    } catch (e) {
+    } catch (err) {
       console.warn("⚠️ No test cases found in GridFS for problem:", id);
     }
 
     res.json({ ...problem.toObject(), testCases });
   } catch (err) {
     console.error("❌ Error in getProblem:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// Edit a problem
+// Edit problem
 exports.editProblem = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, difficulty, testCases } = req.body;
 
-    const updated = await Problem.findByIdAndUpdate(id, { title, description, difficulty }, { new: true });
+    const updated = await Problem.findByIdAndUpdate(
+      id,
+      { title, description, difficulty },
+      { new: true }
+    );
     if (!updated) return res.status(404).json({ error: "Problem not found" });
 
     if (testCases?.length) {
-      const inputArr = testCases.map(tc => tc.input.trim());
-      const outputArr = testCases.map(tc => tc.expectedOutput.trim());
+      const inputArr = testCases.map((tc) => tc.input.trim());
+      const outputArr = testCases.map((tc) => tc.expectedOutput.trim());
 
       await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputArr, null, 2));
       await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputArr, null, 2));
@@ -116,11 +133,11 @@ exports.editProblem = async (req, res) => {
     res.json({ message: "Problem updated successfully", problem: updated });
   } catch (err) {
     console.error("❌ Error in editProblem:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// Submit full test cases for a problem
+// Submit all test cases to judge server
 exports.submitProblem = async (req, res) => {
   const { code, language } = req.body;
   const problemId = req.params.id;
@@ -132,17 +149,17 @@ exports.submitProblem = async (req, res) => {
   try {
     const response = await axios.post(`${COMPILER_URL}/api/problems/${problemId}/submit`, {
       code,
-      language
+      language,
     });
 
     res.status(response.status).json(response.data);
   } catch (err) {
     console.error("❌ Error during submission:", err.message);
-    res.status(500).json({ error: "Failed to connect to compiler", details: err.message });
+    res.status(500).json({ error: "Compiler service error", details: err.message });
   }
 };
 
-// Run first 3 test cases + optional custom input
+// Run first 3 test cases or custom input
 exports.runProblem = async (req, res) => {
   const { code, language, customInput } = req.body;
   const problemId = req.params.id;
@@ -156,7 +173,7 @@ exports.runProblem = async (req, res) => {
       code,
       language,
       customInput,
-      problemId
+      problemId,
     });
 
     res.status(response.status).json(response.data);
@@ -184,20 +201,12 @@ exports.deleteProblem = async (req, res) => {
     const deleted = await Problem.findByIdAndDelete(id);
     if (!deleted) return res.status(404).json({ error: "Problem not found" });
 
-    const inputFile = `${id}_input.txt`;
-    const outputFile = `${id}_expected_output.txt`;
-
-    const deleteIfExists = (filename) =>
-      gfs.find({ filename }).toArray((err, files) => {
-        if (files.length > 0) gfs.delete(files[0]._id, () => {});
-      });
-
-    deleteIfExists(inputFile);
-    deleteIfExists(outputFile);
+    deleteGridFSFileIfExists(`${id}_input.txt`);
+    deleteGridFSFileIfExists(`${id}_expected_output.txt`);
 
     res.json({ message: "Problem deleted successfully" });
   } catch (err) {
     console.error("❌ Error in deleteProblem:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
