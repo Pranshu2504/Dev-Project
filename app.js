@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin:  "https://dev-project-9epw6vzq8-pranshu-goels-projects.vercel.app",
+    origin:  "https://dev-project-5llpbqair-pranshu-goels-projects.vercel.app",
     credentials: true,
   })
 );
