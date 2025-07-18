@@ -310,7 +310,7 @@ exports.submitProblem = async (req, res) => {
   }
 };
 
-// Run solution
+// Run solution - Updated to use consistent endpoint
 exports.runProblem = async (req, res) => {
   const { code, language, customInput } = req.body;
   const problemId = req.params.id;
@@ -320,11 +320,11 @@ exports.runProblem = async (req, res) => {
   }
 
   try {
-    const response = await axios.post(`${COMPILER_URL}/api/run`, {
+    // Use the consistent endpoint format
+    const response = await axios.post(`${COMPILER_URL}/api/problems/${problemId}/run`, {
       code,
       language,
       customInput,
-      problemId,
     });
 
     res.status(response.status).json(response.data);
