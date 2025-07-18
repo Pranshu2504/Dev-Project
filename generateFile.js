@@ -3,6 +3,7 @@ const { Readable } = require("stream");
 const { v4: uuid } = require("uuid");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 let gridfsBucket;
 
@@ -17,7 +18,8 @@ const generateFile = async (extension, content) => {
   const filename = `${jobId}.${extension}`;
   
   // Create a temporary directory if it doesn't exist
-  const tempDir = path.join(__dirname, "temp");
+  const tempDir = os.tmpdir();
+
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
