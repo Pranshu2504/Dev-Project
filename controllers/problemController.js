@@ -8,15 +8,20 @@ const COMPILER_URL = process.env.COMPILER_URL || "http://localhost:7000";
 
 let gfs;
 const conn = mongoose.connection;
+
+// Ensure GridFS initializes once DB is ready
 conn.once("open", () => {
   gfs = new mongoose.mongo.GridFSBucket(conn.db, {
     bucketName: "problem_data",
   });
 });
 
-// Utility: read a GridFS file
+// === 🔧 Embedded GridFS Utilities ===
+
+// Read file from GridFS
 const readGridFSFile = (filename) => {
   return new Promise((resolve, reject) => {
+    if (!gfs) return reject(new Error("GridFS not initialized"));
     let data = "";
     const stream = gfs.openDownloadStreamByName(filename);
     stream.on("data", (chunk) => (data += chunk));
@@ -25,9 +30,10 @@ const readGridFSFile = (filename) => {
   });
 };
 
-// Utility: write file to GridFS, deleting old if exists
+// Write file to GridFS (replace old if exists)
 const writeGridFSFile = (filename, content) => {
   return new Promise((resolve, reject) => {
+    if (!gfs) return reject(new Error("GridFS not initialized"));
     gfs.find({ filename }).toArray((err, files) => {
       if (err) return reject(err);
       const upload = () => {
@@ -43,8 +49,9 @@ const writeGridFSFile = (filename, content) => {
   });
 };
 
-// Utility: delete GridFS file if exists
+// Delete file if exists in GridFS
 const deleteGridFSFileIfExists = (filename) => {
+  if (!gfs) return;
   gfs.find({ filename }).toArray((err, files) => {
     if (!err && files.length > 0) {
       gfs.delete(files[0]._id, () => {});
@@ -52,13 +59,26 @@ const deleteGridFSFileIfExists = (filename) => {
   });
 };
 
+// === 🚀 Controller Methods ===
+
 // Create a new problem
 exports.createProblem = async (req, res) => {
   try {
     const { title, description, difficulty, testCases } = req.body;
 
-    if (!title || !description || !difficulty || !testCases?.length) {
-      return res.status(400).json({ error: "All fields and at least one test case are required." });
+    if (!title || !description || !difficulty || !Array.isArray(testCases)) {
+      return res.status(400).json({ error: "All fields and testCases array are required." });
+    }
+
+    const cleanedTestCases = testCases
+      .map((tc) => ({
+        input: tc.input?.trim(),
+        expectedOutput: tc.expectedOutput?.trim(),
+      }))
+      .filter((tc) => tc.input && tc.expectedOutput);
+
+    if (cleanedTestCases.length === 0) {
+      return res.status(400).json({ error: "At least one valid test case is required." });
     }
 
     const exists = await Problem.findOne({ title });
@@ -70,11 +90,11 @@ exports.createProblem = async (req, res) => {
     await newProblem.save();
 
     const id = newProblem._id.toString();
-    const inputArr = testCases.map((tc) => tc.input.trim());
-    const outputArr = testCases.map((tc) => tc.expectedOutput.trim());
+    const inputs = cleanedTestCases.map((tc) => tc.input);
+    const outputs = cleanedTestCases.map((tc) => tc.expectedOutput);
 
-    await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputArr, null, 2));
-    await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputArr, null, 2));
+    await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputs, null, 2));
+    await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputs, null, 2));
 
     res.status(201).json({ message: "Problem created successfully", id });
   } catch (err) {
@@ -83,7 +103,7 @@ exports.createProblem = async (req, res) => {
   }
 };
 
-// Get a problem by ID
+// Get problem by ID
 exports.getProblem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -109,7 +129,7 @@ exports.getProblem = async (req, res) => {
   }
 };
 
-// Edit problem
+// Edit a problem
 exports.editProblem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -122,12 +142,20 @@ exports.editProblem = async (req, res) => {
     );
     if (!updated) return res.status(404).json({ error: "Problem not found" });
 
-    if (testCases?.length) {
-      const inputArr = testCases.map((tc) => tc.input.trim());
-      const outputArr = testCases.map((tc) => tc.expectedOutput.trim());
+    if (Array.isArray(testCases) && testCases.length > 0) {
+      const cleaned = testCases
+        .map((tc) => ({
+          input: tc.input?.trim(),
+          expectedOutput: tc.expectedOutput?.trim(),
+        }))
+        .filter((tc) => tc.input && tc.expectedOutput);
 
-      await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputArr, null, 2));
-      await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputArr, null, 2));
+      if (cleaned.length > 0) {
+        const inputs = cleaned.map((tc) => tc.input);
+        const outputs = cleaned.map((tc) => tc.expectedOutput);
+        await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputs, null, 2));
+        await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputs, null, 2));
+      }
     }
 
     res.json({ message: "Problem updated successfully", problem: updated });
@@ -137,7 +165,7 @@ exports.editProblem = async (req, res) => {
   }
 };
 
-// Submit all test cases to judge server
+// Submit solution
 exports.submitProblem = async (req, res) => {
   const { code, language } = req.body;
   const problemId = req.params.id;
@@ -159,7 +187,7 @@ exports.submitProblem = async (req, res) => {
   }
 };
 
-// Run first 3 test cases or custom input
+// Run solution
 exports.runProblem = async (req, res) => {
   const { code, language, customInput } = req.body;
   const problemId = req.params.id;
@@ -183,7 +211,7 @@ exports.runProblem = async (req, res) => {
   }
 };
 
-// List all problems
+// List problems
 exports.listProblems = async (req, res) => {
   try {
     const problems = await Problem.find({}, "title description difficulty");
