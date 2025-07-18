@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const { generateFile } = require("./generateFile");
+const { generateFile, cleanupFile } = require("./generateFile");
 const { executeCode } = require("./execute");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const mongoose = require("mongoose");
@@ -70,9 +70,10 @@ app.post("/api/problems/:id/run", async (req, res) => {
     return res.status(400).json({ error: "Invalid inputs" });
   }
 
+  let filepath;
   try {
     const ext = extMap[language];
-    const filepath = generateFile(ext, code);
+    filepath = await generateFile(ext, code);
 
     // Check if GridFS is initialized
     if (!gridFSBucket) {
@@ -125,6 +126,11 @@ app.post("/api/problems/:id/run", async (req, res) => {
       stderr: err.stderr || err.message || "Unknown compilation error",
       testResults: [],
     });
+  } finally {
+    // Clean up the temporary file
+    if (filepath) {
+      cleanupFile(filepath);
+    }
   }
 });
 
@@ -138,9 +144,10 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     return res.status(400).json({ error: "Invalid language or missing code." });
   }
 
+  let filepath;
   try {
     const ext = extMap[language];
-    const filepath = generateFile(ext, code);
+    filepath = await generateFile(ext, code);
 
     // Check if GridFS is initialized
     if (!gridFSBucket) {
@@ -195,6 +202,11 @@ app.post("/api/problems/:id/submit", async (req, res) => {
       stderr: err.stderr || err.message || "Unknown error",
       testResults: [],
     });
+  } finally {
+    // Clean up the temporary file
+    if (filepath) {
+      cleanupFile(filepath);
+    }
   }
 });
 
