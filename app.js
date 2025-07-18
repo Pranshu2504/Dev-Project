@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin:  "https://dev-project-hfmnznqja-pranshu-goels-projects.vercel.app",
+    origin: "https://dev-project-hfmnznqja-pranshu-goels-projects.vercel.app",
     credentials: true,
   })
 );
@@ -27,6 +27,14 @@ app.use(
 app.use("/api/auth", authRoutes);
 app.use("/api/problems", problemRoutes);
 app.use("/api/submissions", submissionRoutes);
+
+// ⛔ Catch-all for unknown non-API routes (prevents /manifest.json 401)
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/api")) {
+    return res.status(404).send("Not found");
+  }
+  next();
+});
 
 // Connect to MongoDB and start server
 mongoose
