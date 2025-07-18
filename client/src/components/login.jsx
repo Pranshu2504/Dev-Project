@@ -9,7 +9,9 @@ import {
 } from "@mui/material";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+
 const API = process.env.REACT_APP_API_URL;
+
 const Login = ({ setUser }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,19 +25,22 @@ const Login = ({ setUser }) => {
     setLoading(true);
 
     try {
-      // 1. Login and store cookie
+      // Step 1: Login request with cookies
       await axios.post(
         `${API}/api/auth/login`,
         { email, password },
         { withCredentials: true }
       );
 
-      // 2. Get user info (with role)
+      // Step 2: Get authenticated user (including role)
       const userRes = await axios.get(`${API}/api/auth/me`, {
         withCredentials: true,
       });
 
-      setUser(userRes.data); // Now contains role
+      // Save user to parent state
+      setUser(userRes.data.user);
+
+      // Redirect to home
       navigate("/");
     } catch (err) {
       setLoading(false);
