@@ -7,7 +7,7 @@ import "./App.css";
 import {
   ThemeProvider,
   createTheme,
-  CssBaseline
+  CssBaseline,
 } from "@mui/material";
 
 import { DarkModeProvider, DarkModeContext } from "./context/DarkMode";
@@ -23,6 +23,9 @@ import Home from "./components/home";
 
 const API = process.env.REACT_APP_API_URL;
 
+// Set credentials globally
+axios.defaults.withCredentials = true;
+
 function AppContent() {
   const { darkMode } = useContext(DarkModeContext);
   const [user, setUser] = useState(null);
@@ -37,9 +40,7 @@ function AppContent() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await axios.get(`${API}/api/auth/me`, {
-          withCredentials: true,
-        });
+        const res = await axios.get(`${API}/api/auth/me`);
         setUser(res.data.user);
       } catch (err) {
         console.error("Error fetching user:", err);
@@ -61,10 +62,10 @@ function AppContent() {
           <Route path="/login" element={<Login setUser={setUser} />} />
           <Route path="/signup" element={<Signup setUser={setUser} />} />
           <Route path="/problems" element={<Problems user={user} />} />
-          <Route path="/solve/:id" element={<SolveProblem />} />
-          <Route path="/problems/:id" element={<ProblemDetails />} />
-          <Route path="/create-problem" element={<CreateProblem />} />
-          <Route path="/edit-problem/:id" element={<EditProblem />} />
+          <Route path="/solve/:id" element={<SolveProblem user={user} />} />
+          <Route path="/problems/:id" element={<ProblemDetails user={user} />} />
+          <Route path="/create-problem" element={<CreateProblem user={user} />} />
+          <Route path="/edit-problem/:id" element={<EditProblem user={user} />} />
         </Routes>
       </Router>
     </ThemeProvider>
