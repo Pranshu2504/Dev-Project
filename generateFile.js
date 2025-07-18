@@ -5,6 +5,8 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
+const tempDir = os.tmpdir();
+
 let gridfsBucket;
 
 mongoose.connection.on("connected", () => {
@@ -16,52 +18,38 @@ mongoose.connection.on("connected", () => {
 const generateFile = async (extension, content) => {
   const jobId = uuid();
   const filename = `${jobId}.${extension}`;
-  
-  // Create a temporary directory if it doesn't exist
-  const tempDir = os.tmpdir();
-
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-  }
-  
-  // Create the full filepath
   const filepath = path.join(tempDir, filename);
-  
-  // Write the file to disk for execution
+
+  // Write to local temp file
   fs.writeFileSync(filepath, content);
-  
-  // Also save to GridFS for persistence (optional)
+
+  // Upload to GridFS
   if (gridfsBucket) {
     try {
-      const buffer = Buffer.from(content, "utf-8");
-      const stream = Readable.from(buffer);
+      const stream = Readable.from([content]);
       const uploadStream = gridfsBucket.openUploadStream(filename);
       stream.pipe(uploadStream);
-      
-      // Wait for GridFS upload to complete (optional)
+
       await new Promise((resolve, reject) => {
         uploadStream.on("finish", resolve);
         uploadStream.on("error", reject);
       });
-    } catch (error) {
-      console.warn("GridFS upload failed:", error.message);
-      // Continue execution even if GridFS fails
+    } catch (err) {
+      console.warn("GridFS upload failed:", err.message);
     }
   }
-  
-  // Return the filepath for execution
-  return filepath;
+
+  return filename; // return filename only, for reading from GridFS
 };
 
-// Helper function to clean up temporary files
 const cleanupFile = (filepath) => {
   try {
     if (fs.existsSync(filepath)) {
       fs.unlinkSync(filepath);
     }
-  } catch (error) {
-    console.warn("Failed to cleanup file:", filepath, error.message);
+  } catch (err) {
+    console.warn("Cleanup failed:", filepath, err.message);
   }
 };
 
-module.exports = { generateFile, cleanupFile };
+module.exports = { generateFile, cleanupFile, getGridFSBucket: () => gridfsBucket };

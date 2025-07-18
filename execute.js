@@ -3,13 +3,15 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
+const { getGridFSBucket } = require("./generateFile");
 
 const tempDir = os.tmpdir();
 
-const executeCode = ({ language, filepath, input, gridfsBucket }) => {
+const executeCode = ({ language, filepath, input }) => {
   return new Promise((resolve, reject) => {
+    const gridfsBucket = getGridFSBucket();
     if (!gridfsBucket) {
-      return reject(new Error("GridFS bucket not initialized."));
+      return reject(new Error("❌ GridFS bucket not initialized"));
     }
 
     const uniqueId = uuidv4();
@@ -18,16 +20,16 @@ const executeCode = ({ language, filepath, input, gridfsBucket }) => {
     const inputPath = path.join(tempDir, `${uniqueId}.input.txt`);
     const outputPath = path.join(tempDir, `${uniqueId}.output.txt`);
 
-    const download = gridfsBucket.openDownloadStreamByName(filepath);
-    const codeWriteStream = fs.createWriteStream(tempCodePath);
+    const downloadStream = gridfsBucket.openDownloadStreamByName(filepath);
+    const fileWriteStream = fs.createWriteStream(tempCodePath);
 
-    download.pipe(codeWriteStream);
+    downloadStream.pipe(fileWriteStream);
 
-    codeWriteStream.on("error", (err) => {
-      return reject(new Error("Failed to write file to temp path: " + err.message));
+    fileWriteStream.on("error", (err) => {
+      return reject(new Error("❌ Failed to write temp file: " + err.message));
     });
 
-    codeWriteStream.on("finish", () => {
+    fileWriteStream.on("finish", () => {
       fs.writeFileSync(inputPath, input || "");
 
       let compileCmd = "";
@@ -60,8 +62,8 @@ const executeCode = ({ language, filepath, input, gridfsBucket }) => {
             output = fs.readFileSync(outputPath, "utf-8");
           }
 
-          [tempCodePath, inputPath, outputPath].forEach((file) => {
-            if (fs.existsSync(file)) fs.unlinkSync(file);
+          [tempCodePath, inputPath, outputPath].forEach((f) => {
+            if (fs.existsSync(f)) fs.unlinkSync(f);
           });
 
           resolve({
@@ -74,10 +76,7 @@ const executeCode = ({ language, filepath, input, gridfsBucket }) => {
       if (compileCmd) {
         exec(compileCmd, (err, _, stderr) => {
           if (err) {
-            return resolve({
-              output: "",
-              stderr: stderr || err.message,
-            });
+            return resolve({ output: "", stderr: stderr || err.message });
           }
           run();
         });

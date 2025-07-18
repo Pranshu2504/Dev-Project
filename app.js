@@ -11,9 +11,8 @@ const app = express();
 const PORT = process.env.PORT || 7000;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-let gridFSBucket;
+let gridfsBucket; // ✅ use consistent lowercase name
 
-// Initialize GridFS
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -22,7 +21,7 @@ mongoose.connect(process.env.MONGO_URI, {
 const conn = mongoose.connection;
 conn.once("open", () => {
   try {
-    gridFSBucket = new mongoose.mongo.GridFSBucket(conn.db, {
+    gridfsBucket = new mongoose.mongo.GridFSBucket(conn.db, {
       bucketName: "problem_data",
     });
     console.log("✅ MongoDB GridFS initialized");
@@ -39,12 +38,12 @@ const normalize = (s) =>
 
 const getFileText = (filename) =>
   new Promise((resolve, reject) => {
-    if (!gridFSBucket) {
+    if (!gridfsBucket) {
       return reject(new Error("GridFS not initialized"));
     }
 
     let data = "";
-    const stream = gridFSBucket.openDownloadStreamByName(filename);
+    const stream = gridfsBucket.openDownloadStreamByName(filename);
 
     stream.on("data", (chunk) => {
       data += chunk.toString();
@@ -75,7 +74,7 @@ app.post("/api/problems/:id/run", async (req, res) => {
     const ext = extMap[language];
     filepath = await generateFile(ext, code);
 
-    if (!gridFSBucket) {
+    if (!gridfsBucket) {
       return res.status(500).json({ 
         error: "Database not initialized",
         testResults: []
@@ -158,7 +157,7 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     const ext = extMap[language];
     filepath = await generateFile(ext, code);
 
-    if (!gridFSBucket) {
+    if (!gridfsBucket) {
       return res.status(500).json({ 
         status: "error",
         error: "Database not initialized",
@@ -246,7 +245,7 @@ app.post("/api/ai-help", async (req, res) => {
 app.get("/health", (req, res) => {
   res.json({ 
     status: "OK", 
-    gridfs: gridFSBucket ? "connected" : "not connected",
+    gridfs: gridfsBucket ? "connected" : "not connected",
     timestamp: new Date().toISOString()
   });
 });
