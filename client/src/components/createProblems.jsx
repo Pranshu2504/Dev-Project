@@ -1,3 +1,4 @@
+// SAME IMPORTS
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -8,6 +9,7 @@ import {
   Paper,
   Snackbar,
   Alert,
+  MenuItem,
 } from "@mui/material";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -18,26 +20,25 @@ const API = process.env.REACT_APP_API_URL;
 
 const CreateProblem = () => {
   const navigate = useNavigate();
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState("Easy");
-  const [testCases, setTestCases] = useState([{ input: "", output: "" }]);
+  const [testCases, setTestCases] = useState([{ input: "", expectedOutput: "" }]);
   const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [errorSnackbar, setErrorSnackbar] = useState("");
 
-  // 🔐 Check for admin access
+  // 🔐 Admin Access Only
   useEffect(() => {
     axios
       .get(`${API}/api/auth/me`, { withCredentials: true })
       .then((res) => {
         if (res.data.user?.role !== "admin") {
-          alert("You are not authorized to access this page.");
+          alert("You are not authorized.");
           navigate("/");
         }
       })
-      .catch((err) => {
-        console.error("Error verifying user role:", err);
-        navigate("/login");
-      });
+      .catch(() => navigate("/login"));
   }, []);
 
   const handleTestCaseChange = (index, field, value) => {
@@ -47,7 +48,7 @@ const CreateProblem = () => {
   };
 
   const handleAddTestCase = () => {
-    setTestCases([...testCases, { input: "", output: "" }]);
+    setTestCases([...testCases, { input: "", expectedOutput: "" }]);
   };
 
   const handleDeleteTestCase = (index) => {
@@ -56,34 +57,53 @@ const CreateProblem = () => {
     setTestCases(updated);
   };
 
-  const handleSubmit = async () => {
-    try {
-      const payload = {
-        title,
-        description,
-        difficulty,
-        testCases: testCases.map((tc) => ({
-          input: tc.input.trim(),
-          expectedOutput: tc.output.trim(),
-        })),
-      };
+  const validateFields = () => {
+    if (!title.trim() || !description.trim()) {
+      setErrorSnackbar("Title and Description are required.");
+      return false;
+    }
+    const valid = testCases.some(
+      (tc) => tc.input.trim() && tc.expectedOutput.trim()
+    );
+    if (!valid) {
+      setErrorSnackbar("At least one valid test case is required.");
+      return false;
+    }
+    return true;
+  };
 
+  const handleSubmit = async () => {
+    if (!validateFields()) return;
+
+    const payload = {
+      title: title.trim(),
+      description: description.trim(),
+      difficulty,
+      testCases: testCases
+        .filter((tc) => tc.input.trim() && tc.expectedOutput.trim())
+        .map((tc) => ({
+          input: tc.input.trim(),
+          expectedOutput: tc.expectedOutput.trim(),
+        })),
+    };
+
+    try {
       await axios.post(`${API}/api/problems`, payload, {
         withCredentials: true,
       });
 
       setOpenSnackbar(true);
-      setTimeout(() => navigate("/"), 1500); // ✅ Redirect to home
+      setTimeout(() => navigate("/"), 1500);
     } catch (err) {
       console.error("❌ Error creating problem:", err.response?.data || err);
-      alert("Error creating problem");
+      setErrorSnackbar("Something went wrong. Please try again.");
     }
   };
 
   return (
     <Box p={4}>
       <Typography variant="h4" gutterBottom>
-        Create New Problem
+        🧠 Create New Problem
       </Typography>
 
       <TextField
@@ -105,14 +125,22 @@ const CreateProblem = () => {
       <TextField
         label="Difficulty"
         fullWidth
+        select
         value={difficulty}
         onChange={(e) => setDifficulty(e.target.value)}
         margin="normal"
-      />
+      >
+        {["Easy", "Medium", "Hard"].map((level) => (
+          <MenuItem key={level} value={level}>
+            {level}
+          </MenuItem>
+        ))}
+      </TextField>
 
       <Typography variant="h6" mt={4}>
         Test Cases
       </Typography>
+
       {testCases.map((tc, index) => (
         <Paper key={index} sx={{ p: 2, mt: 2, position: "relative" }}>
           <TextField
@@ -131,9 +159,9 @@ const CreateProblem = () => {
             fullWidth
             multiline
             rows={2}
-            value={tc.output}
+            value={tc.expectedOutput}
             onChange={(e) =>
-              handleTestCaseChange(index, "output", e.target.value)
+              handleTestCaseChange(index, "expectedOutput", e.target.value)
             }
             margin="normal"
           />
@@ -163,11 +191,21 @@ const CreateProblem = () => {
 
       <Snackbar
         open={openSnackbar}
-        autoHideDuration={2000}
+        autoHideDuration={2500}
         onClose={() => setOpenSnackbar(false)}
       >
         <Alert severity="success" sx={{ width: "100%" }}>
-          Problem created successfully!
+          ✅ Problem created successfully!
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={!!errorSnackbar}
+        autoHideDuration={3000}
+        onClose={() => setErrorSnackbar("")}
+      >
+        <Alert severity="error" sx={{ width: "100%" }}>
+          {errorSnackbar}
         </Alert>
       </Snackbar>
     </Box>
