@@ -24,6 +24,7 @@ import { DarkModeContext } from "../context/DarkMode";
 
 const languages = ["cpp", "python", "java"];
 const API = process.env.REACT_APP_API_URL;
+const AI_API = process.env.REACT_APP_AI_URL; // Add this line
 
 const languageBoilerplates = {
   cpp: `#include <bits/stdc++.h>
@@ -119,13 +120,15 @@ export default function SolveProblem() {
   const handleAIHelp = async () => {
     setLoadingAI(true);
     try {
-      const res = await axios.post(`${API}/api/ai-help`, {
+      // Use AI_API instead of API for AI help requests
+      const res = await axios.post(`${AI_API}/api/ai-help`, {
         prompt: `Problem Title: ${problem.title}\n\nProblem Description: ${problem.description}\n\nUser Code:\n${code}\n\nSuggest improvements or optimizations and error handling in 4 short bullet points.`,
       });
       setAiHelp(res.data.answer || "AI could not generate a response.");
       setAiResponseReady(true);
     } catch (err) {
       console.error("AI Help error:", err);
+      console.error("Request URL:", err.config?.url);
       setAiHelp("Something went wrong while fetching AI help.");
       setAiResponseReady(true);
     } finally {
