@@ -7,6 +7,7 @@ const { GridFSBucket } = require("mongodb");
 const authRoutes = require("./routes/authRoutes");
 const problemRoutes = require("./routes/problemRoutes");
 const submissionRoutes = require("./routes/submissionRoutes");
+const { initializeGridFS } = require("./controllers/problemController");
 
 // Load .env only in development
 if (process.env.NODE_ENV !== "production") {
@@ -31,7 +32,9 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => {
+  .then(async () => {
+    console.log("✅ MongoDB connected");
+    
     const db = mongoose.connection.db;
     const gfs = new GridFSBucket(db, { bucketName: "problem_data" });
 
@@ -43,6 +46,14 @@ mongoose
       req.gfs = gfs;
       next();
     });
+
+    // Initialize GridFS in problem controller
+    try {
+      await initializeGridFS();
+      console.log("✅ GridFS initialized in problem controller");
+    } catch (error) {
+      console.error("❌ GridFS initialization failed:", error);
+    }
 
     // Routes
     app.use("/api/auth", authRoutes);
