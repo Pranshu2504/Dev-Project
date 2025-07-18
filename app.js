@@ -13,7 +13,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // ✅ Allowed frontend origin (Vercel URL)
 const allowedOrigins = [
-  "https://dev-project-n2qjkbcvi-pranshu-goels-projects.vercel.app",
+  "https://dev-project-b26zcosxi-pranshu-goels-projects.vercel.app",
 ];
 
 // ✅ CORS Setup for credentials
