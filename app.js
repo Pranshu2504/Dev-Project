@@ -13,7 +13,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 let gridFSBucket;
 
-// Initialize GridFS with consistent pattern
+// Initialize GridFS
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -42,18 +42,18 @@ const getFileText = (filename) =>
     if (!gridFSBucket) {
       return reject(new Error("GridFS not initialized"));
     }
-    
+
     let data = "";
     const stream = gridFSBucket.openDownloadStreamByName(filename);
-    
+
     stream.on("data", (chunk) => {
       data += chunk.toString();
     });
-    
+
     stream.on("end", () => {
       resolve(data);
     });
-    
+
     stream.on("error", (error) => {
       console.error(`❌ Error reading GridFS file ${filename}:`, error);
       reject(error);
@@ -75,7 +75,6 @@ app.post("/api/problems/:id/run", async (req, res) => {
     const ext = extMap[language];
     filepath = await generateFile(ext, code);
 
-    // Check if GridFS is initialized
     if (!gridFSBucket) {
       return res.status(500).json({ 
         error: "Database not initialized",
@@ -90,11 +89,16 @@ app.post("/api/problems/:id/run", async (req, res) => {
 
     const testResults = [];
 
-    // Run only first 3 test cases for "run" (not full submission)
     for (let i = 0; i < Math.min(3, inputArr.length); i++) {
       const input = inputArr[i];
       const expected = expectedArr[i] || "";
-      const { output = "", stderr = "" } = await executeCode({ language, filepath, input });
+
+      const { output = "", stderr = "" } = await executeCode({
+        language,
+        filepath,
+        input,
+        gridfsBucket,
+      });
 
       if (stderr) {
         return res.status(200).json({
@@ -114,7 +118,13 @@ app.post("/api/problems/:id/run", async (req, res) => {
 
     let customResult = null;
     if (customInput && customInput.trim()) {
-      const { output, stderr } = await executeCode({ language, filepath, input: customInput });
+      const { output, stderr } = await executeCode({
+        language,
+        filepath,
+        input: customInput,
+        gridfsBucket,
+      });
+
       customResult = { input: customInput, output, stderr };
     }
 
@@ -127,7 +137,6 @@ app.post("/api/problems/:id/run", async (req, res) => {
       testResults: [],
     });
   } finally {
-    // Clean up the temporary file
     if (filepath) {
       cleanupFile(filepath);
     }
@@ -149,7 +158,6 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     const ext = extMap[language];
     filepath = await generateFile(ext, code);
 
-    // Check if GridFS is initialized
     if (!gridFSBucket) {
       return res.status(500).json({ 
         status: "error",
@@ -165,11 +173,16 @@ app.post("/api/problems/:id/submit", async (req, res) => {
 
     const testResults = [];
 
-    // Run ALL test cases for submission
     for (let i = 0; i < inputArr.length; i++) {
       const input = inputArr[i];
       const expected = expectedArr[i] || "";
-      const { output = "", stderr = "" } = await executeCode({ language, filepath, input });
+
+      const { output = "", stderr = "" } = await executeCode({
+        language,
+        filepath,
+        input,
+        gridfsBucket,
+      });
 
       if (stderr) {
         return res.status(200).json({
@@ -189,10 +202,9 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     }
 
     const allPassed = testResults.every(t => t.passed);
-    
     res.status(200).json({
       status: allPassed ? "pass" : "fail",
-      testResults: testResults,
+      testResults,
     });
   } catch (err) {
     console.error("🔥 Submission Error:", err);
@@ -203,7 +215,6 @@ app.post("/api/problems/:id/submit", async (req, res) => {
       testResults: [],
     });
   } finally {
-    // Clean up the temporary file
     if (filepath) {
       cleanupFile(filepath);
     }
@@ -231,7 +242,7 @@ app.post("/api/ai-help", async (req, res) => {
   }
 });
 
-// Health check endpoint
+// Health check
 app.get("/health", (req, res) => {
   res.json({ 
     status: "OK", 
