@@ -6,22 +6,29 @@ const { generateFile } = require("./generateFile");
 const { executeCode } = require("./execute");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const mongoose = require("mongoose");
-const Grid = require("gridfs-stream");
 
 const app = express();
 const PORT = process.env.PORT || 7000;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-let gfs;
+let gridFSBucket;
+
+// Initialize GridFS with consistent pattern
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
+
 const conn = mongoose.connection;
 conn.once("open", () => {
-  gfs = Grid(conn.db, mongoose.mongo);
-  gfs.collection("problem_data");
-  console.log("✅ MongoDB GridFS initialized");
+  try {
+    gridFSBucket = new mongoose.mongo.GridFSBucket(conn.db, {
+      bucketName: "problem_data",
+    });
+    console.log("✅ MongoDB GridFS initialized");
+  } catch (error) {
+    console.error("❌ GridFS initialization failed:", error);
+  }
 });
 
 app.use(cors());
@@ -32,25 +39,48 @@ const normalize = (s) =>
 
 const getFileText = (filename) =>
   new Promise((resolve, reject) => {
+    if (!gridFSBucket) {
+      return reject(new Error("GridFS not initialized"));
+    }
+    
     let data = "";
-    const readstream = gfs.createReadStream({ filename });
-    readstream.on("data", (chunk) => (data += chunk));
-    readstream.on("end", () => resolve(data));
-    readstream.on("error", reject);
+    const stream = gridFSBucket.openDownloadStreamByName(filename);
+    
+    stream.on("data", (chunk) => {
+      data += chunk.toString();
+    });
+    
+    stream.on("end", () => {
+      resolve(data);
+    });
+    
+    stream.on("error", (error) => {
+      console.error(`❌ Error reading GridFS file ${filename}:`, error);
+      reject(error);
+    });
   });
 
-// ---------------- /api/run ----------------
-app.post("/api/run", async (req, res) => {
-  const { code, language, problemId, customInput } = req.body;
+// ---------------- /api/problems/:id/run ----------------
+app.post("/api/problems/:id/run", async (req, res) => {
+  const { code, language, customInput } = req.body;
+  const problemId = req.params.id;
   const extMap = { cpp: "cpp", python: "py", java: "java" };
 
-  if (!code || !language || !problemId || !extMap[language]) {
+  if (!code || !language || !extMap[language]) {
     return res.status(400).json({ error: "Invalid inputs" });
   }
 
   try {
     const ext = extMap[language];
     const filepath = generateFile(ext, code);
+
+    // Check if GridFS is initialized
+    if (!gridFSBucket) {
+      return res.status(500).json({ 
+        error: "Database not initialized",
+        testResults: []
+      });
+    }
 
     const inputRaw = await getFileText(`${problemId}_input.txt`);
     const outputRaw = await getFileText(`${problemId}_expected_output.txt`);
@@ -59,6 +89,7 @@ app.post("/api/run", async (req, res) => {
 
     const testResults = [];
 
+    // Run only first 3 test cases for "run" (not full submission)
     for (let i = 0; i < Math.min(3, inputArr.length); i++) {
       const input = inputArr[i];
       const expected = expectedArr[i] || "";
@@ -111,6 +142,15 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     const ext = extMap[language];
     const filepath = generateFile(ext, code);
 
+    // Check if GridFS is initialized
+    if (!gridFSBucket) {
+      return res.status(500).json({ 
+        status: "error",
+        error: "Database not initialized",
+        testResults: []
+      });
+    }
+
     const inputRaw = await getFileText(`${problemId}_input.txt`);
     const outputRaw = await getFileText(`${problemId}_expected_output.txt`);
     const inputArr = JSON.parse(inputRaw);
@@ -118,6 +158,7 @@ app.post("/api/problems/:id/submit", async (req, res) => {
 
     const testResults = [];
 
+    // Run ALL test cases for submission
     for (let i = 0; i < inputArr.length; i++) {
       const input = inputArr[i];
       const expected = expectedArr[i] || "";
@@ -128,12 +169,12 @@ app.post("/api/problems/:id/submit", async (req, res) => {
           status: "error",
           error: stderr,
           stderr,
-          results: [],
+          testResults: [],
         });
       }
 
       testResults.push({
-        testCase: `tc${i + 1}`,
+        testCase: i + 1,
         actualOutput: normalize(output),
         expectedOutput: normalize(expected),
         passed: normalize(output) === normalize(expected),
@@ -141,9 +182,10 @@ app.post("/api/problems/:id/submit", async (req, res) => {
     }
 
     const allPassed = testResults.every(t => t.passed);
+    
     res.status(200).json({
       status: allPassed ? "pass" : "fail",
-      results: testResults,
+      testResults: testResults,
     });
   } catch (err) {
     console.error("🔥 Submission Error:", err);
@@ -151,7 +193,7 @@ app.post("/api/problems/:id/submit", async (req, res) => {
       status: "error",
       error: err.stderr || err.message || "Unknown error",
       stderr: err.stderr || err.message || "Unknown error",
-      results: [],
+      testResults: [],
     });
   }
 });
@@ -175,6 +217,15 @@ app.post("/api/ai-help", async (req, res) => {
     console.error("🔥 Gemini Error:", err);
     res.status(500).json({ error: "Gemini failed to generate a response" });
   }
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ 
+    status: "OK", 
+    gridfs: gridFSBucket ? "connected" : "not connected",
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.listen(PORT, () => {
