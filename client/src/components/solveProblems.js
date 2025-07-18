@@ -24,7 +24,6 @@ import { DarkModeContext } from "../context/DarkMode";
 
 const languages = ["cpp", "python", "java"];
 const API = process.env.REACT_APP_API_URL;
-const AI_API = process.env.REACT_APP_AI_URL;
 
 const languageBoilerplates = {
   cpp: `#include <bits/stdc++.h>
@@ -66,8 +65,12 @@ export default function SolveProblem() {
 
   useEffect(() => {
     const fetchProblem = async () => {
-      const res = await axios.get(`${API}/api/problems/${id}`);
-      setProblem(res.data);
+      try {
+        const res = await axios.get(`${API}/api/problems/${id}`);
+        setProblem(res.data);
+      } catch (error) {
+        console.error("Error fetching problem:", error);
+      }
     };
     fetchProblem();
   }, [id]);
@@ -83,7 +86,11 @@ export default function SolveProblem() {
       });
       setResults(res.data);
     } catch (err) {
-      setResults({ error: err.response?.data?.error || "Run failed." });
+      console.error("Run error:", err);
+      setResults({ 
+        error: err.response?.data?.error || "Run failed.",
+        testResults: []
+      });
     }
     setLoading(false);
   };
@@ -96,9 +103,15 @@ export default function SolveProblem() {
         code,
         language,
       });
+      
+      // Backend now returns consistent structure
       setResults(res.data);
     } catch (err) {
-      setResults({ error: err.response?.data?.error || "Submission failed." });
+      console.error("Submit error:", err);
+      setResults({ 
+        error: err.response?.data?.error || "Submission failed.",
+        testResults: []
+      });
     }
     setLoading(false);
   };
@@ -106,13 +119,15 @@ export default function SolveProblem() {
   const handleAIHelp = async () => {
     setLoadingAI(true);
     try {
-      const res = await axios.post(`${AI_API}/api/ai-help`, {
-        prompt: `Problem Title: ${problem.title}\n\nProblem Description: ${problem.description}\n\nUser Code:\n${code}\n\nSuggest improvements or optimizations  and error handling in 4 short bullet points.`,
+      const res = await axios.post(`${API}/api/ai-help`, {
+        prompt: `Problem Title: ${problem.title}\n\nProblem Description: ${problem.description}\n\nUser Code:\n${code}\n\nSuggest improvements or optimizations and error handling in 4 short bullet points.`,
       });
       setAiHelp(res.data.answer || "AI could not generate a response.");
       setAiResponseReady(true);
     } catch (err) {
+      console.error("AI Help error:", err);
       setAiHelp("Something went wrong while fetching AI help.");
+      setAiResponseReady(true);
     } finally {
       setLoadingAI(false);
     }
@@ -173,7 +188,7 @@ export default function SolveProblem() {
               <Typography variant="h6" gutterBottom>
                 🧪 Sample Test Cases
               </Typography>
-              {problem.testCases.slice(0, 3).map((tc, i) => (
+              {problem.testCases && problem.testCases.slice(0, 3).map((tc, i) => (
                 <Paper
                   key={i}
                   variant="outlined"
@@ -257,7 +272,7 @@ export default function SolveProblem() {
             <Button variant="outlined" onClick={handleAIHelp} disabled={loadingAI || !problem}>
               🤖 AI Help
             </Button>
-            {loading && <CircularProgress size={24} />}
+            {(loading || loadingAI) && <CircularProgress size={24} />}
           </Box>
 
           <Editor
@@ -296,40 +311,73 @@ export default function SolveProblem() {
               <Typography variant="h6" fontWeight="bold">
                 🧾 Test Results
               </Typography>
+              
+              {/* Show submission status */}
+              {results.status && (
+                <Box sx={{ mt: 2, mb: 2 }}>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      color: results.status === "pass" ? "success.main" : 
+                            results.status === "fail" ? "error.main" : "warning.main"
+                    }}
+                  >
+                    {results.status === "pass" ? "✅ All Tests Passed!" : 
+                     results.status === "fail" ? "❌ Some Tests Failed" : 
+                     "⚠️ Execution Error"}
+                  </Typography>
+                </Box>
+              )}
+
               {results.error && (
-                <Typography color="error" sx={{ mt: 2 }}>
+                <Typography color="error" sx={{ mt: 2, fontFamily: "monospace" }}>
                   ❌ {results.error}
                 </Typography>
               )}
-              {(results.results || results.testResults)?.map((res, i) => (
-                <Paper
-                  key={i}
-                  sx={{
-                    p: 2,
-                    mt: 2,
-                    backgroundColor: res.passed ? "#e8f5e9" : "#ffebee",
-                    borderLeft: `6px solid ${res.passed ? "#2e7d32" : "#c62828"}`,
-                  }}
-                >
-                  <Typography fontWeight="bold">
-                    {res.passed ? "✅" : "❌"} Test Case {i + 1}
-                  </Typography>
-                  <Typography fontFamily="monospace">Output: {res.actualOutput}</Typography>
-                  <Typography fontFamily="monospace">Expected: {res.expectedOutput}</Typography>
-                  {res.stderr && (
-                    <Typography fontFamily="monospace" color="error">
-                      stderr: {res.stderr}
-                    </Typography>
-                  )}
-                </Paper>
-              ))}
+
+              {results.testResults && results.testResults.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  {results.testResults.map((res, i) => (
+                    <Paper
+                      key={i}
+                      sx={{
+                        p: 2,
+                        mt: 2,
+                        backgroundColor: res.passed ? "#e8f5e9" : "#ffebee",
+                        borderLeft: `6px solid ${res.passed ? "#2e7d32" : "#c62828"}`,
+                      }}
+                    >
+                      <Typography fontWeight="bold">
+                        {res.passed ? "✅" : "❌"} Test Case {res.testCase || i + 1}
+                      </Typography>
+                      <Typography fontFamily="monospace" sx={{ mt: 1 }}>
+                        <strong>Output:</strong> {res.actualOutput || "No output"}
+                      </Typography>
+                      <Typography fontFamily="monospace">
+                        <strong>Expected:</strong> {res.expectedOutput || "No expected output"}
+                      </Typography>
+                      {res.stderr && (
+                        <Typography fontFamily="monospace" color="error">
+                          <strong>Error:</strong> {res.stderr}
+                        </Typography>
+                      )}
+                    </Paper>
+                  ))}
+                </Box>
+              )}
+
               {results.customResult && (
                 <Paper sx={{ p: 2, mt: 3, backgroundColor: "#fff8e1", borderLeft: "6px solid #f9a825" }}>
                   <Typography fontWeight="bold">📥 Custom Input Result</Typography>
-                  <Typography fontFamily="monospace">Output: {results.customResult.output}</Typography>
+                  <Typography fontFamily="monospace" sx={{ mt: 1 }}>
+                    <strong>Input:</strong> {results.customResult.input}
+                  </Typography>
+                  <Typography fontFamily="monospace">
+                    <strong>Output:</strong> {results.customResult.output || "No output"}
+                  </Typography>
                   {results.customResult.stderr && (
                     <Typography fontFamily="monospace" color="error">
-                      stderr: {results.customResult.stderr}
+                      <strong>Error:</strong> {results.customResult.stderr}
                     </Typography>
                   )}
                 </Paper>
