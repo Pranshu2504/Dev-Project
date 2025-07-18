@@ -2,18 +2,20 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const { GridFSBucket } = require("mongodb");
+
 const authRoutes = require("./routes/authRoutes");
 const problemRoutes = require("./routes/problemRoutes");
 const submissionRoutes = require("./routes/submissionRoutes");
 
-// Load .env only in development (Render injects env automatically)
+// Load .env only in development
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
 
 const app = express();
-app.set("trust proxy", 1); 
-// Middleware
+app.set("trust proxy", 1);
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(
@@ -23,29 +25,38 @@ app.use(
   })
 );
 
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/problems", problemRoutes);
-app.use("/api/submissions", submissionRoutes);
-
-// ⛔ Catch-all for unknown non-API routes (prevents /manifest.json 401)
-app.use((req, res, next) => {
-  if (!req.path.startsWith("/api")) {
-    return res.status(404).send("Not found");
-  }
-  next();
-});
-
-// Connect to MongoDB and start server
+// MongoDB connect
 mongoose
   .connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
   .then(() => {
-    app.listen(5000, () => {
-      console.log("✅ Server running on port 5000");
+    const db = mongoose.connection.db;
+    const gfs = new GridFSBucket(db, { bucketName: "problem_data" });
+
+    // Inject gfs into app locals
+    app.locals.gfs = gfs;
+
+    // Pass gfs to routes via middleware
+    app.use((req, res, next) => {
+      req.gfs = gfs;
+      next();
     });
+
+    // Routes
+    app.use("/api/auth", authRoutes);
+    app.use("/api/problems", problemRoutes);
+    app.use("/api/submissions", submissionRoutes);
+
+    app.use((req, res, next) => {
+      if (!req.path.startsWith("/api")) {
+        return res.status(404).send("Not found");
+      }
+      next();
+    });
+
+    app.listen(5000, () => console.log("✅ Server running on port 5000"));
   })
   .catch((err) => {
     console.error("❌ MongoDB connection error:", err);

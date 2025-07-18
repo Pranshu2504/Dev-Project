@@ -9,28 +9,25 @@ const COMPILER_URL = process.env.COMPILER_URL || "http://localhost:7000";
 let gfs;
 const conn = mongoose.connection;
 
-// Ensure GridFS initializes once DB is ready
 conn.once("open", () => {
   gfs = new mongoose.mongo.GridFSBucket(conn.db, {
     bucketName: "problem_data",
   });
 });
 
-// === 🔧 Embedded GridFS Utilities ===
+// === 🔧 GridFS Utilities ===
 
-// Read file from GridFS
 const readGridFSFile = (filename) => {
   return new Promise((resolve, reject) => {
     if (!gfs) return reject(new Error("GridFS not initialized"));
     let data = "";
     const stream = gfs.openDownloadStreamByName(filename);
-    stream.on("data", (chunk) => (data += chunk));
+    stream.on("data", (chunk) => (data += chunk.toString()));
     stream.on("end", () => resolve(data));
     stream.on("error", reject);
   });
 };
 
-// Write file to GridFS (replace old if exists)
 const writeGridFSFile = (filename, content) => {
   return new Promise((resolve, reject) => {
     if (!gfs) return reject(new Error("GridFS not initialized"));
@@ -38,7 +35,10 @@ const writeGridFSFile = (filename, content) => {
       if (err) return reject(err);
       const upload = () => {
         const stream = gfs.openUploadStream(filename);
-        Readable.from(content).pipe(stream).on("finish", resolve).on("error", reject);
+        Readable.from(content)
+          .pipe(stream)
+          .on("error", reject)
+          .on("finish", resolve);
       };
       if (files.length > 0) {
         gfs.delete(files[0]._id, upload);
@@ -49,14 +49,12 @@ const writeGridFSFile = (filename, content) => {
   });
 };
 
-// Delete file if exists in GridFS
-const deleteGridFSFileIfExists = (filename) => {
+const deleteGridFSFileIfExists = async (filename) => {
   if (!gfs) return;
-  gfs.find({ filename }).toArray((err, files) => {
-    if (!err && files.length > 0) {
-      gfs.delete(files[0]._id, () => {});
-    }
-  });
+  const files = await gfs.find({ filename }).toArray();
+  if (files.length > 0) {
+    await gfs.delete(files[0]._id);
+  }
 };
 
 // === 🚀 Controller Methods ===
@@ -90,11 +88,14 @@ exports.createProblem = async (req, res) => {
     await newProblem.save();
 
     const id = newProblem._id.toString();
+    const inputFileName = `${id}_input.txt`;
+    const outputFileName = `${id}_expected_output.txt`;
+
     const inputs = cleanedTestCases.map((tc) => tc.input);
     const outputs = cleanedTestCases.map((tc) => tc.expectedOutput);
 
-    await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputs, null, 2));
-    await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputs, null, 2));
+    await writeGridFSFile(inputFileName, JSON.stringify(inputs, null, 2));
+    await writeGridFSFile(outputFileName, JSON.stringify(outputs, null, 2));
 
     res.status(201).json({ message: "Problem created successfully", id });
   } catch (err) {
@@ -110,16 +111,19 @@ exports.getProblem = async (req, res) => {
     const problem = await Problem.findById(id);
     if (!problem) return res.status(404).json({ error: "Problem not found" });
 
+    const inputFileName = `${id}_input.txt`;
+    const outputFileName = `${id}_expected_output.txt`;
+
     let testCases = [];
     try {
-      const input = JSON.parse(await readGridFSFile(`${id}_input.txt`));
-      const output = JSON.parse(await readGridFSFile(`${id}_expected_output.txt`));
-      testCases = input.map((input, i) => ({
-        input,
+      const input = JSON.parse(await readGridFSFile(inputFileName));
+      const output = JSON.parse(await readGridFSFile(outputFileName));
+      testCases = input.map((inp, i) => ({
+        input: inp,
         expectedOutput: output[i] || "",
       }));
     } catch (err) {
-      console.warn("⚠️ No test cases found in GridFS for problem:", id);
+      console.warn("⚠️ Error reading test cases for problem:", id, err.message);
     }
 
     res.json({ ...problem.toObject(), testCases });
@@ -153,6 +157,7 @@ exports.editProblem = async (req, res) => {
       if (cleaned.length > 0) {
         const inputs = cleaned.map((tc) => tc.input);
         const outputs = cleaned.map((tc) => tc.expectedOutput);
+
         await writeGridFSFile(`${id}_input.txt`, JSON.stringify(inputs, null, 2));
         await writeGridFSFile(`${id}_expected_output.txt`, JSON.stringify(outputs, null, 2));
       }
@@ -214,7 +219,7 @@ exports.runProblem = async (req, res) => {
 // List problems
 exports.listProblems = async (req, res) => {
   try {
-    const problems = await Problem.find({}, "title description difficulty");
+    const problems = await Problem.find({}, "title difficulty");
     res.json(problems);
   } catch (err) {
     console.error("❌ Error in listProblems:", err);
@@ -229,8 +234,8 @@ exports.deleteProblem = async (req, res) => {
     const deleted = await Problem.findByIdAndDelete(id);
     if (!deleted) return res.status(404).json({ error: "Problem not found" });
 
-    deleteGridFSFileIfExists(`${id}_input.txt`);
-    deleteGridFSFileIfExists(`${id}_expected_output.txt`);
+    await deleteGridFSFileIfExists(`${id}_input.txt`);
+    await deleteGridFSFileIfExists(`${id}_expected_output.txt`);
 
     res.json({ message: "Problem deleted successfully" });
   } catch (err) {
