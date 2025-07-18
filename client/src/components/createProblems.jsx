@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -14,14 +14,31 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
+const API = process.env.REACT_APP_API_URL;
+
 const CreateProblem = () => {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState("Easy");
   const [testCases, setTestCases] = useState([{ input: "", output: "" }]);
-
   const [openSnackbar, setOpenSnackbar] = useState(false);
+
+  // 🔐 Check for admin access
+  useEffect(() => {
+    axios
+      .get(`${API}/api/auth/me`, { withCredentials: true })
+      .then((res) => {
+        if (res.data.user?.role !== "admin") {
+          alert("You are not authorized to access this page.");
+          navigate("/");
+        }
+      })
+      .catch((err) => {
+        console.error("Error verifying user role:", err);
+        navigate("/login");
+      });
+  }, []);
 
   const handleTestCaseChange = (index, field, value) => {
     const updated = [...testCases];
@@ -47,15 +64,19 @@ const CreateProblem = () => {
         difficulty,
         testCases: testCases.map((tc) => ({
           input: tc.input.trim(),
-          expectedOutput: tc.output.trim(), // ✅ This is key
+          expectedOutput: tc.output.trim(),
         })),
       };
 
-      await axios.post("/api/problems", payload);
+      await axios.post(`${API}/api/problems`, payload, {
+        withCredentials: true,
+      });
+
       setOpenSnackbar(true);
-      setTimeout(() => navigate("/problems"), 1500);
+      setTimeout(() => navigate("/"), 1500); // ✅ Redirect to home
     } catch (err) {
       console.error("❌ Error creating problem:", err.response?.data || err);
+      alert("Error creating problem");
     }
   };
 
@@ -100,7 +121,9 @@ const CreateProblem = () => {
             multiline
             rows={2}
             value={tc.input}
-            onChange={(e) => handleTestCaseChange(index, "input", e.target.value)}
+            onChange={(e) =>
+              handleTestCaseChange(index, "input", e.target.value)
+            }
             margin="normal"
           />
           <TextField
@@ -109,7 +132,9 @@ const CreateProblem = () => {
             multiline
             rows={2}
             value={tc.output}
-            onChange={(e) => handleTestCaseChange(index, "output", e.target.value)}
+            onChange={(e) =>
+              handleTestCaseChange(index, "output", e.target.value)
+            }
             margin="normal"
           />
           <IconButton
