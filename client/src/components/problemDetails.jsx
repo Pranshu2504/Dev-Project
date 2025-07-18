@@ -14,6 +14,13 @@ import {
   CircularProgress,
   createTheme,
   ThemeProvider,
+  Snackbar,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
@@ -28,6 +35,9 @@ function ProblemDetails() {
   const [user, setUser] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [openSuccessSnackbar, setOpenSuccessSnackbar] = useState(false);
+  const [openErrorSnackbar, setOpenErrorSnackbar] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { darkMode, toggleDarkMode } = useContext(DarkModeContext);
 
   const theme = createTheme({
@@ -59,14 +69,20 @@ function ProblemDetails() {
   const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
 
-  const handleDelete = async () => {
+  const handleDeleteConfirm = async () => {
     try {
       await axios.delete(`${API}/api/problems/${id}`, {
         withCredentials: true,
       });
-      navigate("/problems");
+      setConfirmOpen(false);
+      setOpenSuccessSnackbar(true);
+      setTimeout(() => {
+        navigate("/"); // Redirect to home
+      }, 1500);
     } catch (err) {
       console.error("❌ Delete failed:", err);
+      setConfirmOpen(false);
+      setOpenErrorSnackbar(true);
     }
   };
 
@@ -178,7 +194,7 @@ function ProblemDetails() {
               <Button
                 variant="outlined"
                 color="error"
-                onClick={handleDelete}
+                onClick={() => setConfirmOpen(true)}
               >
                 ❌ Delete
               </Button>
@@ -186,6 +202,49 @@ function ProblemDetails() {
           )}
         </Box>
       </Box>
+
+      {/* ✅ Confirmation Dialog */}
+      <Dialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+      >
+        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this problem? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ✅ Success Snackbar */}
+      <Snackbar
+        open={openSuccessSnackbar}
+        autoHideDuration={2000}
+        onClose={() => setOpenSuccessSnackbar(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity="success" sx={{ width: "100%" }}>
+          Problem deleted successfully!
+        </Alert>
+      </Snackbar>
+
+      {/* ❌ Error Snackbar */}
+      <Snackbar
+        open={openErrorSnackbar}
+        autoHideDuration={3000}
+        onClose={() => setOpenErrorSnackbar(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity="error" sx={{ width: "100%" }}>
+          Failed to delete the problem!
+        </Alert>
+      </Snackbar>
     </ThemeProvider>
   );
 }
