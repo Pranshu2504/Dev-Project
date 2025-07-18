@@ -15,7 +15,8 @@ mongoose.connection.on("connected", () => {
 
 const executeCode = ({ language, filepath, input }) => {
   return new Promise((resolve, reject) => {
-    const tempCodePath = path.join(tempDir, filepath);
+    const tempCodePath = path.join(tempDir, path.basename(filepath)); // ✅ Correct
+
 
     const download = gridfsBucket.openDownloadStreamByName(filepath);
     const codeWriteStream = fs.createWriteStream(tempCodePath);
