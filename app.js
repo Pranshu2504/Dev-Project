@@ -11,7 +11,25 @@ const app = express();
 const PORT = process.env.PORT || 7000;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-let gridfsBucket; // ✅ use consistent lowercase name
+// ✅ Allowed frontend origin (Vercel URL)
+const allowedOrigins = [
+  "https://dev-project-n2qjkbcvi-pranshu-goels-projects.vercel.app",
+];
+
+// ✅ CORS Setup for credentials
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
+
+// Optional: handle preflight OPTIONS
+app.options("*", cors());
+
+app.use(express.json());
+
+let gridfsBucket;
 
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
@@ -29,9 +47,6 @@ conn.once("open", () => {
     console.error("❌ GridFS initialization failed:", error);
   }
 });
-
-app.use(cors());
-app.use(express.json());
 
 const normalize = (s) =>
   s.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").map(l => l.trim()).join("\n");
