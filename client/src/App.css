@@ -1,0 +1,348 @@
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f4f6f8;
+  color: #222;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #0b5394;
+  padding: 12px 20px;
+}
+
+.nav-left,
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.navbar a {
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 6px 10px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.navbar a:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.nav-brand {
+  font-size: 1.3rem;
+  font-weight: bold;
+}
+
+.logout-btn {
+  background: #ef5350;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.logout-btn:hover {
+  background: #d32f2f;
+}
+
+.home-container {
+  max-width: 700px;
+  margin: 50px auto;
+  text-align: center;
+  background: white;
+  padding: 40px;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+}
+
+.home-heading {
+  font-size: 2.5rem;
+  color: #0b5394;
+  margin-bottom: 20px;
+}
+
+.home-message {
+  font-size: 1.1rem;
+  color: #555;
+}
+
+.loading {
+  font-size: 1.2rem;
+  text-align: center;
+  margin-top: 50px;
+}
+/* Problem List */
+.problem-list-container {
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.problem-list-heading {
+  font-size: 2rem;
+  color: #0b5394;
+  margin-bottom: 20px;
+}
+
+.problem-card {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 15px;
+  transition: box-shadow 0.2s;
+  background: #f9f9f9;
+}
+
+.problem-card:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.problem-title {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.problem-description {
+  color: #555;
+  margin-top: 5px;
+}
+
+/* Create/Edit Form */
+.form-container {
+  max-width: 700px;
+  margin: 40px auto;
+  padding: 30px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
+
+.form-container h2 {
+  color: #0b5394;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-submit {
+  background: #0b5394;
+  color: white;
+  padding: 10px 20px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.form-submit:hover {
+  background: #063970;
+}
+.problem-actions a {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 6px 12px;
+  font-size: 0.95rem;
+  background-color: #0b5394;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.problem-actions a:hover {
+  background-color: #073763;
+}
+.btn {
+  background-color: #0b5394;
+  color: white;
+  border: none;
+  padding: 7px 14px;
+  margin-right: 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.btn:hover {
+  background-color: #073763;
+}
+
+.btn-delete {
+  background-color: #ef5350;
+}
+
+.btn-delete:hover {
+  background-color: #d32f2f;
+}
+.form-container {
+  max-width: 600px;
+  margin: 40px auto;
+  background: #fff;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+}
+
+.form-container h2 {
+  margin-bottom: 20px;
+  color: #0b5394;
+  text-align: center;
+}
+
+.form-container label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-container input,
+.form-container textarea {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+.form-container button {
+  background-color: #0b5394;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.form-container button:hover {
+  background-color: #073763;
+}
+
+.cancel-link {
+  margin-left: 10px;
+  color: #555;
+  text-decoration: none;
+}
+
+.cancel-link:hover {
+  text-decoration: underline;
+}
+.container {
+  max-width: 400px;
+  margin: 60px auto;
+  background: #ffffff;
+  padding: 40px 35px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+h2 {
+  text-align: center;
+  color: #0b5394;
+  margin-bottom: 30px;
+  font-weight: 700;
+  font-size: 2rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 1rem;
+}
+
+.form-group input {
+  padding: 12px 15px;
+  font-size: 1rem;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  outline: none;
+}
+
+.form-group input:focus {
+  border-color: #0b5394;
+  box-shadow: 0 0 8px rgba(11, 83, 148, 0.3);
+}
+
+.error {
+  color: #d32f2f;
+  font-size: 0.85rem;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #0b5394 0%, #08386c 100%);
+  border: none;
+  color: white;
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 14px;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 15px rgba(11, 83, 148, 0.4);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #08386c 0%, #0b5394 100%);
+  box-shadow: 0 6px 20px rgba(8, 56, 108, 0.6);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 480px) {
+  .container {
+    margin: 40px 20px;
+    padding: 30px 25px;
+  }
+}
+
